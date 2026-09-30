@@ -1,0 +1,8 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/socket",
+  "chensuiyi/bm2/core",
+  "chensuiyi/bm2/process",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/encoding/utf8",
+}

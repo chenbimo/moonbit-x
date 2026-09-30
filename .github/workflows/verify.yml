@@ -1,0 +1,26 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pin the toolchain to the local dev version. The version string is
+      # the full moonc version from `moon -V` (e.g. 0.10.14+7d59c7ec9);
+      # dated 0.1.YYYYMMDD strings are not served by the binary host.
+      - name: Install MoonBit
+        run: curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+        env:
+          MOONBIT_INSTALL_VERSION: 0.10.14+7d59c7ec9
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Run full verification
+        run: bash scripts/verify.sh

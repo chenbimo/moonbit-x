@@ -1,0 +1,13 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/signal",
+  "moonbitlang/async/socket",
+  "chensuiyi/bm2/config",
+  "chensuiyi/bm2/core",
+  "chensuiyi/bm2/ipc",
+  "chensuiyi/bm2/process",
+  "moonbitlang/core/env",
+  "moonbitlang/core/encoding/utf8",
+}
+
+pkgtype(kind: "executable")

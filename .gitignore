@@ -1,0 +1,6 @@
+_build
+_build-wsl
+.mooncakes
+.e2e-tmp
+.temp
+docs

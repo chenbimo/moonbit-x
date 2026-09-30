@@ -1,0 +1,14 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/socket",
+  "chensuiyi/bm2/config",
+  "chensuiyi/bm2/core",
+  "chensuiyi/bm2/ipc",
+  "chensuiyi/bm2/process",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/x/fs",
+  "peter-jerry-ye/parse_args",
+}
+
+pkgtype(kind: "executable")

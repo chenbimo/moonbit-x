@@ -1,0 +1,141 @@
+///|
+pub(all) enum Status {
+  Stopped
+  Starting
+  Online
+  Restarting
+  Errored
+  Stopping
+} derive(Debug, Eq)
+
+///|
+pub extend Status with Debug::{to_repr}
+
+///|
+pub extend Status with Eq::{not_equal, equal}
+
+///|
+pub fn Status::as_string(self : Status) -> String {
+  match self {
+    Stopped => "stopped"
+    Starting => "starting"
+    Online => "online"
+    Restarting => "restarting"
+    Errored => "errored"
+    Stopping => "stopping"
+  }
+}
+
+///|
+/// What bm2 wants to happen after the current process exits.
+pub(all) enum ExitIntent {
+  Idle
+  Stop
+  RestartFresh
+  RestartCounted
+} derive(Debug, Eq)
+
+///|
+pub extend ExitIntent with Debug::{to_repr}
+
+///|
+pub extend ExitIntent with Eq::{not_equal, equal}
+
+///|
+/// Runtime SO_REUSEPORT probe state for cluster instances; the kernel is
+/// asked (via a bind test) whether the app's listener actually shares the
+/// port, so a missing `reusePort` is caught instead of crashing later.
+pub(all) enum ReusePortState {
+  ReuseOff
+  ReusePending
+  ReuseOk
+  ReuseExclusive
+} derive(Debug, Eq)
+
+///|
+pub extend ReusePortState with Debug::{to_repr}
+
+///|
+pub extend ReusePortState with Eq::{not_equal, equal}
+
+///|
+pub(all) struct Instance {
+  app_name : String
+  cwd : String
+  instance_id : Int
+  port : Int
+  exec_mode : String
+  mut pid : Int
+  /// pidfd pinned to `pid` (0 when not running); never pid-reused.
+  mut pidfd : Int
+  mut status : Status
+  mut started_at_ms : UInt64
+  /// Total launch count: every start (manual or automatic) increments
+  /// it; resets only when the project is killed and started fresh.
+  mut times : Int
+  /// Consecutive abnormal restarts; the crash budget only. Reset to zero
+  /// once the instance has stayed up past min_uptime, which needs no
+  /// extra flag: the counter itself is the guard.
+  mut restart_count : Int
+  mut exit_intent : ExitIntent
+  mut kill_deadline_ms : UInt64
+  mut restart_at_ms : UInt64
+  mut last_exit_code : Int?
+  mut last_signal : Int?
+  mut last_reason : String?
+  mut last_rss_kb : Int
+  mut reuseport : ReusePortState
+  mut reuseport_deadline_ms : UInt64
+} derive(Debug)
+
+///|
+pub extend Instance with Debug::{to_repr}
+
+///|
+pub fn Instance::new(config : @config.Config, instance_id : Int) -> Instance {
+  {
+    app_name: config.name,
+    cwd: config.cwd,
+    instance_id,
+    port: if config.exec_mode == "cluster" {
+      config.port
+    } else {
+      config.port + instance_id
+    },
+    exec_mode: config.exec_mode,
+    pid: 0,
+    pidfd: 0,
+    status: Stopped,
+    started_at_ms: 0UL,
+    times: 0,
+    restart_count: 0,
+    exit_intent: Idle,
+    kill_deadline_ms: 0UL,
+    restart_at_ms: 0UL,
+    last_exit_code: None,
+    last_signal: None,
+    last_reason: None,
+    last_rss_kb: 0,
+    reuseport: if config.exec_mode == "cluster" {
+      ReusePending
+    } else {
+      ReuseOff
+    },
+    reuseport_deadline_ms: 0UL,
+  }
+}
+
+///|
+/// True while the OS process exists. The pidfd is authoritative (it is
+/// pinned to the original process, so a reused pid cannot be mistaken for
+/// a live instance); pid_alive is only a fallback when no pidfd exists.
+pub fn Instance::alive(self : Instance) -> Bool {
+  if self.pid <= 0 {
+    return false
+  }
+  if self.pidfd > 0 {
+    @process.pidfd_alive(self.pidfd)
+  } else {
+    @process.pid_alive(self.pid)
+  }
+}
