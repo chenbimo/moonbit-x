@@ -77,8 +77,4 @@ moon build --target native release
 
 `publish` 需要 `moon` 与 mooncakes 账号令牌在 WSL 的 PATH / 环境中。
 
-## 已知问题 Known Issues
-
-- **异常退出码恒为 0**:工具的输出(计划/错误消息)全部正确,但失败场景(`--patch --minor` 冲突、找不到 moon.work 等)进程退出码仍为 0,`&&` 链式脚本无法靠退出码判断失败。原因疑似 MoonBit async 运行时与 FFI exit 的交互,已定位到最小复现(`exit_code(N)` 不生效)。**脚本请以输出内容为准**;交互使用不受影响。
-
 License: MIT
