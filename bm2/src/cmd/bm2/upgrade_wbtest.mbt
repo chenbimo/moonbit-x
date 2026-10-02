@@ -16,7 +16,8 @@ test "upgrade only fires when the published version is newer" {
     Some(version) => version
     None => fail("expected a published version")
   }
-  assert_eq(@core.version_compare(latest, VERSION), 0)
+  // 索引里最新的是 0.5.1,比当前 0.5.0 新:升级应触发。
+  assert_true(@core.version_compare(latest, VERSION) > 0)
   assert_true(@core.version_compare("0.5.2", VERSION) > 0)
   assert_true(@core.version_compare("0.4.9", VERSION) < 0)
 }
