@@ -1,15 +1,10 @@
 import {
   "moonbitlang/async",
-  "moonbitlang/async/http",
-  "moonbitlang/async/socket",
-  "moonbitlang/async/tls",
   "chensuiyi/bm2/config",
   "chensuiyi/bm2/process",
+  "chensuiyi/notify",
   "moonbitlang/core/env",
   "moonbitlang/core/json",
-  "moonbitlang/core/debug",
   "moonbitlang/core/encoding/utf8",
-  "moonbitlang/core/encoding/base64",
-  "moonbitlang/x/crypto",
   "moonbitlang/x/fs",
 }

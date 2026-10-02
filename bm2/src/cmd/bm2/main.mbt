@@ -16,80 +16,86 @@ async fn run() -> Int {
       return 1
     }
   }
-  let args = @env.args()
-  if args.length() < 2 {
-    usage()
-    return 2
+  // 子命令注册:参数定义即文档,help 与错误提示由 core/argparse 自动渲染。
+  let state_dir = @core.resolve_state_dir()
+  let optional_name = fn(about : String) {
+    @argparse.PositionArg(
+      "name",
+      about=about,
+      num_args=@argparse.ValueRange(lower=0, upper=1),
+    )
   }
-  let argv : Array[String] = []
-  for i in 1..<args.length() {
-    argv.push(args[i])
-  }
-  // One parse for every command: `-y` and `--json` are the only flags, so a
-  // mistyped flag lands in positionals and is rejected by the arity checks
-  // below instead of being silently swallowed.
-  let parsed = try @parse_args.parse(argv[:], flags=["y", "json"]) catch {
-    _ => {
-      usage()
+  let cmd = @argparse.Command(
+    "bm2",
+    about="Linux 下的 Bun / Node.js 进程管理器",
+    version=VERSION,
+    subcommands=[
+      @argparse.Command("start", about="注册并启动当前目录的项目"),
+      @argparse.Command(
+        "kill",
+        about="停止并注销一个项目",
+        flags=[
+          @argparse.FlagArg(
+            "all",
+            short='y',
+            about="停止 bm2d 与全部应用(跳过确认)",
+          ),
+        ],
+        positionals=[optional_name("只处理该项目")],
+      ),
+      @argparse.Command(
+        "list",
+        about="显示项目状态",
+        flags=[@argparse.FlagArg("json", about="机器可读 JSON 输出")],
+        positionals=[optional_name("只看该项目")],
+      ),
+      @argparse.Command("reload", about="换用新二进制重启后台服务,应用保持运行"),
+      @argparse.Command(
+        "notify",
+        about="向通知目标发送测试消息",
+        positionals=[optional_name("只测该通知目标")],
+      ),
+      @argparse.Command("upgrade", about="升级 bm2 并无缝应用"),
+      @argparse.Command("version", about="显示版本"),
+    ],
+  )
+  let matches = try cmd.parse(env=Map([])) catch {
+    err => {
+      // argparse 已把错误与上下文 help 打到 stderr,这里只补退出码。
+      println("\{err}")
       return 2
     }
   } noraise {
     parsed => parsed
   }
-  let positional = parsed.positional
-  let json_flag = parsed.flags.get("json") is Some(true)
-  let confirmed = parsed.flags.get("y") is Some(true)
-  if positional.length() == 0 {
-    usage()
-    return 2
-  }
-  let command = positional[0]
-  let state_dir = @core.resolve_state_dir()
-  match command {
-    "start" | "kill" | "list" | "reload" | "notify" => ()
-    "upgrade" => {
-      if positional.length() != 1 {
-        usage()
-        return 2
-      }
-      return cmd_upgrade(state_dir)
-    }
-    "version" => {
-      if positional.length() != 1 {
-        usage()
-        return 2
-      }
-      println("bm2 " + VERSION)
-      return 0
-    }
-    _ => {
-      usage()
+  let (command, sub) = match matches.subcommand {
+    Some((name, sub)) => (name, sub)
+    None => {
+      println(cmd.render_help())
       return 2
     }
   }
-  // start/reload take no arguments; the rest take at most one name or
-  // target. list/notify/kill may carry one positional after the command.
-  if json_flag && command != "list" {
-    usage()
-    return 2
+  let json_flag = sub.flags.get("json") is Some(true)
+  let confirmed = sub.flags.get("all") is Some(true)
+  let app_arg : String? = match sub.values.get("name") {
+    Some(names) if names.length() > 0 => Some(names[0])
+    _ =>
+      match sub.values.get("target") {
+        Some(names) if names.length() > 0 => Some(names[0])
+        _ => None
+      }
   }
-  if positional.length() > 2 {
-    usage()
-    return 2
+  match command {
+    "upgrade" => return cmd_upgrade(state_dir)
+    "version" => {
+      println("bm2 " + VERSION)
+      return 0
+    }
+    _ => ()
   }
-  if (command == "start" || command == "reload") && positional.length() != 1 {
-    usage()
-    return 2
-  }
-  let app_arg : String? = if positional.length() == 2 {
-    Some(positional[1])
-  } else {
-    None
-  }
-  // `-y` is exclusively the bare "stop everything" confirmation; it never
-  // combines with a project name.
+  // `-y` 专属于"停止 bm2d 与全部应用";与项目名同时出现视为用法错误。
   if confirmed && app_arg is Some(_) {
-    usage()
+    println(cmd.render_help())
     return 2
   }
   // Bare `kill` stops bm2d and all apps, so it requires the -y flag.
@@ -789,20 +795,4 @@ fn pad2(n : Int) -> String {
   } else {
     n.to_string()
   }
-}
-
-///|
-fn usage() -> Unit {
-  let text =
-    #|usage: bm2 <command>
-    #|
-    #|commands:
-    #|  start          register and start the project in the current directory
-    #|  kill <name>    stop and unregister one project; use -y to stop everything
-    #|  notify [name]  send a test notification to every target, or to one
-    #|  reload         restart the background service with a fresh binary; apps keep running
-    #|  list [name]    show project status; add --json for machine-readable output
-    #|  upgrade        update bm2 to the latest mooncakes release and apply
-    #|  version        show version
-  println(text)
 }

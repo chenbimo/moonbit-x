@@ -84,7 +84,7 @@ pub fn Supervisor::notify_instance(
   self.notify.emit(
     self.project_policy(inst.app_name),
     inst.app_name,
-    NotifyMessage::new(
+    @notify.Message::new(
       event,
       level,
       "\{inst.app_name} · \{title}",
@@ -116,7 +116,7 @@ pub fn Supervisor::notify_project(
   self.notify.emit(
     self.project_policy(app_name),
     app_name,
-    NotifyMessage::new(
+    @notify.Message::new(
       event,
       level,
       "\{app_name} · \{title}",
@@ -203,7 +203,7 @@ fn Supervisor::build_report(
   app_name : String,
   policy : @config.NotifyConfig,
   now : UInt64,
-) -> NotifyMessage {
+) -> @notify.Message {
   let lines = []
   let mut online = 0
   let mut other = 0
@@ -233,7 +233,7 @@ fn Supervisor::build_report(
       None => ()
     }
   }
-  NotifyMessage::new(
+  @notify.Message::new(
     "report",
     if other > 0 {
       "warn"

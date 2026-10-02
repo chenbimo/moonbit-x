@@ -87,7 +87,7 @@ pub fn Supervisor::new(
     last_memory_check_ms: 0UL,
     last_log_check_ms: 0UL,
     last_reuseport_probe_ms: 0UL,
-    notify: Notifier::new(state_dir),
+    notify: Notifier::new(state_dir, @process.hostname()),
     last_notify_check_ms: 0UL,
     last_report_ms: Map([]),
   }
