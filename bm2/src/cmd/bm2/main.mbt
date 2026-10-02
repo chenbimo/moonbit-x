@@ -21,7 +21,7 @@ async fn run() -> Int {
   let optional_name = fn(about : String) {
     @argparse.PositionArg(
       "name",
-      about=about,
+      about~,
       num_args=@argparse.ValueRange(lower=0, upper=1),
     )
   }
@@ -49,12 +49,13 @@ async fn run() -> Int {
         flags=[@argparse.FlagArg("json", about="机器可读 JSON 输出")],
         positionals=[optional_name("只看该项目")],
       ),
-      @argparse.Command("reload", about="换用新二进制重启后台服务,应用保持运行"),
       @argparse.Command(
-        "notify",
-        about="向通知目标发送测试消息",
-        positionals=[optional_name("只测该通知目标")],
+        "reload",
+        about="换用新二进制重启后台服务,应用保持运行",
       ),
+      @argparse.Command("notify", about="向通知目标发送测试消息", positionals=[
+        optional_name("只测该通知目标"),
+      ]),
       @argparse.Command("upgrade", about="升级 bm2 并无缝应用"),
       @argparse.Command("version", about="显示版本"),
     ],
