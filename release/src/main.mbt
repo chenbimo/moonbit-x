@@ -88,6 +88,17 @@ async fn run() -> Int {
     Patch
   }
   let dry_run = parsed.flags.get("dry-run") is Some(true)
+  // 互斥在这里校验(工具侧),argparse 不做 flag 间冲突检测;
+  // `--patch --minor` 同传时两个 flag 均为 true,在此显式拒绝。
+  let kind_count = [
+    parsed.flags.get("patch"),
+    parsed.flags.get("minor"),
+    parsed.flags.get("major"),
+  ].filter(fn(f) { f is Some(true) }).length()
+  if kind_count > 1 {
+    println("release: --patch/--minor/--major are mutually exclusive")
+    return 2
+  }
   let selectors : Array[String] = match parsed.values.get("modules") {
     Some(names) => names
     None => []

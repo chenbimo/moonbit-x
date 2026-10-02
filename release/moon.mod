@@ -19,5 +19,4 @@ keywords = [ "release", "publish", "workspace", "moon.work" ]
 import {
   "moonbitlang/async@0.22.4",
   "moonbitlang/x@0.5.1",
-  "peter-jerry-ye/parse_args@0.1.2",
 }
