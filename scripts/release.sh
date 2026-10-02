@@ -5,5 +5,5 @@ set -euo pipefail
 export PATH="$HOME/.moon/bin:$PATH"
 
 cd "$(dirname "$0")/.."
-moon build --target native release
-exec ./_build/native/debug/build/chensuiyi/release/release.exe "$@"
+moon build --target-dir _build-wsl --target native release
+exec ./_build-wsl/native/debug/build/chensuiyi/release/release.exe "$@"

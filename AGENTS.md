@@ -6,6 +6,7 @@
 
 - MoonBit `moonc 0.10.14`,IDE / WSL / CI 三处统一
 - **操作环境:除用 IDE 写代码外,构建 / 测试 / 验证 / 发包全部在 WSL 执行**(Windows 侧不装工具链、不发包)
+- **构建目录两级制(大仓根)**:`_build` = Windows IDE 默认产物;`_build-wsl` = WSL 全部构建的显式目标(`--target-dir _build-wsl`,moon.work 模式下全 workspace 产物整体落在该树)。成员目录内不落任何构建产物
 - **WSL 互操作层不可信(已实证)**:本机 wsl.exe 的参数桥会随机损坏输出与退出码回传——同一二进制,interop 通道测得恒 0,文件通道测得真实码(2/1/0)。因此:复杂命令一律落盘脚本后以 `wsl bash 脚本` 执行;涉及退出码 / 输出内容的验证,**结果必须写文件再读回**,禁止依赖命令行回传;出现"异常退出码"类怪象时,先用文件通道复测再定位
 - 验证:bm2 在 WSL 中执行 `bash bm2/scripts/verify.sh`;各成员的验证方式见各自文档
 - 发包:WSL 中 `bash scripts/release.sh`(首次发包前在 WSL `moon login` 登录 mooncakes)
