@@ -5,7 +5,7 @@ async fn main {
 
 ///|
 /// Keep in sync with moon.mod `version`.
-const VERSION : String = "0.4.1"
+const VERSION : String = "0.5.0"
 
 ///|
 async fn run() -> Int {

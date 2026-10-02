@@ -13,17 +13,7 @@ fn n_target(
   username? : String,
   password? : String,
 ) -> Target {
-  {
-    name: "t",
-    preset,
-    url,
-    secret,
-    format,
-    from,
-    to,
-    username,
-    password,
-  }
+  { name: "t", preset, url, secret, format, from, to, username, password, }
 }
 
 ///|
@@ -41,7 +31,7 @@ fn n_message(level : String, ts_ms : UInt64) -> Message {
 
 ///|
 fn n_ctx() -> Context {
-  { host: "host1", product: "bm2" }
+  { host: "host1", product: "bm2", }
 }
 
 ///|
@@ -117,7 +107,11 @@ test "the chinese chat presets carry their signature and shape" {
 ///|
 test "the western chat presets use their own payload shape" {
   let msg = n_message("error", 1700000000000UL)
-  let slack = render_delivery(n_target("slack", "https://hooks.slack.com/x"), msg, n_ctx())
+  let slack = render_delivery(
+    n_target("slack", "https://hooks.slack.com/x"),
+    msg,
+    n_ctx(),
+  )
   assert_true(slack.body.contains("\"blocks\""))
   assert_true(slack.body.contains("\"mrkdwn\""))
 
@@ -193,12 +187,7 @@ async test "a failed delivery reports a reason without the credential" {
     "http://127.0.0.1:9/hook?token=SECRET",
     secret="TOPSECRET",
   )
-  let reason = match deliver(
-      target,
-      n_message("warn", 1000UL),
-      300,
-      n_ctx(),
-    ) {
+  let reason = match deliver(target, n_message("warn", 1000UL), 300, n_ctx()) {
     Some(reason) => reason
     None => fail("expected the unreachable target to fail")
   }
@@ -216,16 +205,40 @@ async test "the engine dedupes, rate limits and enforces the queue limit" {
   let engine = Engine::new(n_ctx())
   // Same key inside the dedupe window: first emit queues, the rest counted.
   assert_eq(
-    engine.emit(1000UL, "k1", "app", n_message("warn", 1000UL), dead, 300, dedupe_window_s=3600),
+    engine.emit(
+      1000UL,
+      "k1",
+      "app",
+      n_message("warn", 1000UL),
+      dead,
+      300,
+      dedupe_window_s=3600,
+    ),
     Queued,
   )
   assert_eq(
-    engine.emit(2000UL, "k1", "app", n_message("warn", 2000UL), dead, 300, dedupe_window_s=3600),
+    engine.emit(
+      2000UL,
+      "k1",
+      "app",
+      n_message("warn", 2000UL),
+      dead,
+      300,
+      dedupe_window_s=3600,
+    ),
     Deduped(count=2),
   )
   // A different key is a different event.
   assert_eq(
-    engine.emit(3000UL, "k2", "app", n_message("warn", 3000UL), dead, 300, dedupe_window_s=3600),
+    engine.emit(
+      3000UL,
+      "k2",
+      "app",
+      n_message("warn", 3000UL),
+      dead,
+      300,
+      dedupe_window_s=3600,
+    ),
     Queued,
   )
   assert_eq(engine.queued(), 2)
@@ -233,26 +246,66 @@ async test "the engine dedupes, rate limits and enforces the queue limit" {
   // Rate limit: a fresh window with a 1/minute cap drops the second emit.
   let throttled = Engine::new(n_ctx())
   assert_eq(
-    throttled.emit(1000UL, "a", "app", n_message("warn", 1000UL), dead, 300, rate_per_minute=1),
+    throttled.emit(
+      1000UL,
+      "a",
+      "app",
+      n_message("warn", 1000UL),
+      dead,
+      300,
+      rate_per_minute=1,
+    ),
     Queued,
   )
   assert_eq(
-    throttled.emit(2000UL, "b", "app", n_message("warn", 2000UL), dead, 300, rate_per_minute=1),
+    throttled.emit(
+      2000UL,
+      "b",
+      "app",
+      n_message("warn", 2000UL),
+      dead,
+      300,
+      rate_per_minute=1,
+    ),
     RateLimited,
   )
   assert_eq(throttled.dropped(), 1)
   // Queue limit: a third message for the same owner has no room.
   let capped = Engine::new(n_ctx())
   assert_eq(
-    capped.emit(1000UL, "a", "app", n_message("warn", 1000UL), dead, 300, queue_limit=2),
+    capped.emit(
+      1000UL,
+      "a",
+      "app",
+      n_message("warn", 1000UL),
+      dead,
+      300,
+      queue_limit=2,
+    ),
     Queued,
   )
   assert_eq(
-    capped.emit(1000UL, "b", "app", n_message("warn", 1000UL), dead, 300, queue_limit=2),
+    capped.emit(
+      1000UL,
+      "b",
+      "app",
+      n_message("warn", 1000UL),
+      dead,
+      300,
+      queue_limit=2,
+    ),
     Queued,
   )
   assert_eq(
-    capped.emit(1000UL, "c", "app", n_message("warn", 1000UL), dead, 300, queue_limit=2),
+    capped.emit(
+      1000UL,
+      "c",
+      "app",
+      n_message("warn", 1000UL),
+      dead,
+      300,
+      queue_limit=2,
+    ),
     QueueFull,
   )
 }
@@ -261,7 +314,10 @@ async test "the engine dedupes, rate limits and enforces the queue limit" {
 async test "pump retries with backoff, then exhausts" {
   let dead = [n_target("webhook", "http://127.0.0.1:9/hook?token=SECRET")]
   let engine = Engine::new(n_ctx())
-  assert_eq(engine.emit(1000UL, "k", "app", n_message("warn", 1000UL), dead, 300), Queued)
+  assert_eq(
+    engine.emit(1000UL, "k", "app", n_message("warn", 1000UL), dead, 300),
+    Queued,
+  )
   // First pass fails: attempt 1, next try after 5s.
   let first = engine.pump(1000UL)
   assert_eq(first.remaining, 1)

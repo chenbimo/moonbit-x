@@ -107,5 +107,5 @@ pub extend Context with Debug::{to_repr}
 ///|
 /// The default context for callers that do not care about branding.
 pub fn Context::default() -> Context {
-  { host: "localhost", product: "notify" }
+  { host: "localhost", product: "notify", }
 }

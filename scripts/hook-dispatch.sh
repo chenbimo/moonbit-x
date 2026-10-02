@@ -33,17 +33,9 @@ case "$(uname -s)" in
       echo "git-hook: cannot translate '$root' to a WSL path."
       exit 1
     fi
-    # Extra arguments (the commit-msg file path) are translated to WSL paths
-    # and handed over through the environment, so no shell quoting of values
-    # ever crosses the boundary.
-    exported=""
-    index=1
-    for arg in "$@"; do
-      translated=$(wsl.exe -d Debian -- wslpath -u "$arg" 2>/dev/null | tr -d '\r')
-      [ -n "$translated" ] || translated="$arg"
-      exported="$exported MOONBIT_HOOK_ARG$index=$translated"
-      index=$((index + 1))
-    done
-    exec wsl.exe -d Debian -- env $exported bash -lc "cd '$wsl_root' && bash scripts/$stage.sh \"\$MOONBIT_HOOK_ARG1\""
+    # 无参数设计:commit-msg 需要的消息文件在 WSL 侧路径确定
+    # (<wsl_root>/.git/COMMIT_EDITMSG),由 commit-msg.sh 自行推导,
+    # 不跨桥传参——参数桥在部分环境下会丢参。
+    exec wsl.exe -d Debian -- bash -lc "cd '$wsl_root' && bash scripts/$stage.sh"
     ;;
 esac

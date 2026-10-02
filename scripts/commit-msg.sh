@@ -4,12 +4,14 @@
 #   [项目名](类型) 提交内容
 #
 # Merge and revert commits are exempt — git generates their first line.
-# Runs inside WSL via scripts/hook-dispatch.sh; the argument is the message
-# file git handed to the hook.
+# Runs inside WSL via scripts/hook-dispatch.sh. The message file is the repo's
+# .git/COMMIT_EDITMSG (git always prepares it there for -m/-F; MERGE_MSG for
+# merges), derived from the repository root rather than passed across the
+# Windows/WSL boundary.
 set -euo pipefail
 
-msgfile="${1:-}"
-if [ -z "$msgfile" ] || [ ! -f "$msgfile" ]; then
+msgfile="${1:-.git/COMMIT_EDITMSG}"
+if [ ! -f "$msgfile" ]; then
   echo "commit-msg: no commit message file received"
   exit 1
 fi

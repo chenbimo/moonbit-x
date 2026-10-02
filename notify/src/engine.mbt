@@ -40,7 +40,10 @@ pub struct Engine {
 /// Create an engine. `ctx` brands the outgoing messages (footer and EHLO
 /// name); `max_attempts` is how many delivery passes one message gets before
 /// it is dropped.
-pub fn Engine::new(ctx : Context, max_attempts? : Int = MAX_ATTEMPTS_DEFAULT) -> Engine {
+pub fn Engine::new(
+  ctx : Context,
+  max_attempts? : Int = MAX_ATTEMPTS_DEFAULT,
+) -> Engine {
   {
     ctx,
     max_attempts,
@@ -100,7 +103,10 @@ pub fn Engine::emit(
       Some(entry) =>
         if now >= entry.first_ms && now - entry.first_ms < window {
           // Same condition inside the window: count it, stay silent.
-          self.dedupe[key] = { first_ms: entry.first_ms, count: entry.count + 1, }
+          self.dedupe[key] = {
+            first_ms: entry.first_ms,
+            count: entry.count + 1,
+          }
           return Deduped(count=entry.count + 1)
         } else {
           // The window expired: send again and say how quiet it has been.
@@ -186,7 +192,12 @@ pub async fn Engine::pump(self : Engine, now : UInt64) -> PumpReport {
     return { remaining: self.queue.length(), outcome: Idle, owner: None, }
   }
   let notice = self.queue[0]
-  let results = deliver_all(notice.targets, notice.message, notice.timeout_ms, self.ctx)
+  let results = deliver_all(
+    notice.targets,
+    notice.message,
+    notice.timeout_ms,
+    self.ctx,
+  )
   let delivered = results.filter(fn(pair) {
     let (_, failure) = pair
     failure is None
