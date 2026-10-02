@@ -6,10 +6,12 @@ export PATH="$HOME/.moon/bin:$PATH"
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # The build directory is per environment: Windows only edits the sources (its
-# IDE runs a newer toolchain), while every build, test and e2e run happens here
-# in WSL. Keeping WSL's outputs in a separate tree stops the two toolchains
-# from corrupting each other's caches.
-build_dir="$root/_build-wsl"
+# IDE runs its own toolchain against the default workspace _build), while every
+# build, test and e2e run happens here in WSL, redirected to the workspace-level
+# _build-wsl. Keeping WSL's outputs in a separate tree stops the two toolchains
+# from corrupting each other's caches. moon.work 模式下 --target-dir 指到哪,
+# 全 workspace 的产物就整体落在哪,所以两棵树都在大仓根,成员目录内不落产物。
+build_dir="$(dirname "$root")/_build-wsl"
 # mktemp does not create parent directories, and a fresh checkout has no build
 # dir yet (moon build runs only later in this script).
 mkdir -p "$build_dir"
