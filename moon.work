@@ -1,3 +1,5 @@
 members = [
   "bm2",
+  "notify",
+  "release",
 ]

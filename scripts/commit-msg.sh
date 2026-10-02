@@ -1,0 +1,41 @@
+#!/bin/bash
+# Enforce the workspace commit-message convention (see AGENTS.md):
+#
+#   [项目名](类型) 提交内容
+#
+# Merge and revert commits are exempt — git generates their first line.
+# Runs inside WSL via scripts/hook-dispatch.sh; the argument is the message
+# file git handed to the hook.
+set -euo pipefail
+
+msgfile="${1:-}"
+if [ -z "$msgfile" ] || [ ! -f "$msgfile" ]; then
+  echo "commit-msg: no commit message file received"
+  exit 1
+fi
+
+first=$(head -n 1 "$msgfile" | tr -d '\r')
+
+case "$first" in
+  "Merge "*|"Revert "*)
+    echo "commit-msg: merge/revert commit, format check skipped"
+    exit 0
+    ;;
+esac
+
+if ! printf '%s' "$first" | grep -qE '^\[(bm2|notify|release|root)\]\((feat|fix|docs|refactor|test|chore)\) [^ ].*$'; then
+  cat <<EOF
+commit-msg: 提交说明不符合工作区约定(见根目录 AGENTS.md)。
+
+  实际首行: $first
+  要求格式: [项目名](类型) 提交内容
+    项目名: bm2 | notify | release | root
+    类型:   feat | fix | docs | refactor | test | chore
+  示例:    [bm2](feat) 新增 reload 命令
+
+(确实需要跳过: git commit --no-verify)
+EOF
+  exit 1
+fi
+
+echo "commit-msg: ok"

@@ -19,6 +19,8 @@ MoonBit 生态库集群 · A cluster of MoonBit ecosystem libraries
 ### 成员
 
 - [bm2](bm2/README.md) — Linux 下的 Bun / Node.js 进程管理器
+- [notify](notify/) — 多平台通知库(飞书/钉钉/企微/Slack/Discord/webhook/SMTP 邮件)
+- [release](release/) — workspace 发布编排工具(版本递增/拓扑排序/逐个 publish/sync)
 
 新库在仓库根目录 `moon new` 创建后,把模块名加入 `moon.work` 的 `members` 即可。
 
@@ -28,6 +30,8 @@ MoonBit 生态库集群 · A cluster of MoonBit ecosystem libraries
 moonbit/
 ├── moon.work              # 工作区成员列表
 ├── bm2/                   # chensuiyi/bm2
+├── notify/                # chensuiyi/notify
+├── release/               # chensuiyi/release
 └── README.md
 </pre>
 
@@ -35,6 +39,7 @@ moonbit/
 
 - MoonBit `moonc 0.10.14`(IDE / WSL / CI 统一)
 - bm2 在 WSL 中验证:`bash bm2/scripts/verify.sh`
+- 发布(WSL):`bash scripts/release.sh`(支持 `--dry-run`;首次发包前在 WSL `moon login`)
 
 </td>
 <td valign="top">
@@ -48,6 +53,8 @@ Build what you need, when you need it: one directory per library, growing into i
 ### Members
 
 - [bm2](bm2/README.md) — a process manager for Bun / Node.js on Linux
+- [notify](notify/) — multi-platform notifications (Feishu/DingTalk/WeCom/Slack/Discord/webhook/SMTP email)
+- [release](release/) — workspace release orchestrator (version bump/topo order/publish/sync)
 
 To add a library, create it with `moon new` at the repository root and append the module name to `members` in `moon.work`.
 
@@ -57,6 +64,8 @@ To add a library, create it with `moon new` at the repository root and append th
 moonbit/
 ├── moon.work              # workspace members
 ├── bm2/                   # chensuiyi/bm2
+├── notify/                # chensuiyi/notify
+├── release/               # chensuiyi/release
 └── README.md
 </pre>
 
@@ -64,6 +73,7 @@ moonbit/
 
 - MoonBit `moonc 0.10.14` (identical across IDE, WSL and CI)
 - bm2 is verified in WSL: `bash bm2/scripts/verify.sh`
+- Releases (in WSL): `bash scripts/release.sh` (supports `--dry-run`; run `moon login` in WSL before the first publish)
 
 </td>
 </tr>
