@@ -52,17 +52,29 @@ pub extend ReleaseError with @debug.Debug::{to_repr}
 
 ///|
 async fn run() -> Int {
-  let args = @env.args()
-  let argv : Array[String] = []
-  for i in 1..<args.length() {
-    argv.push(args[i])
-  }
-  let parsed = try @parse_args.parse(
-      argv[:],
-      flags=["patch", "minor", "major", "dry-run"],
-    ) catch {
-    _ => {
-      println("usage: release [--patch|--minor|--major] [--dry-run] [module...]")
+  let cmd = @argparse.Command(
+    "release",
+    about="moon.work 多模块发布编排: 版本递增 → 依赖排序 → 逐个 moon publish → moon work sync",
+    flags=[
+      @argparse.FlagArg("patch", about="bump patch version (default)"),
+      @argparse.FlagArg("minor", about="bump minor version"),
+      @argparse.FlagArg("major", about="bump major version"),
+      @argparse.FlagArg(
+        "dry-run",
+        about="print the plan without writing or publishing",
+      ),
+    ],
+    positionals=[
+      @argparse.PositionArg(
+        "modules",
+        about="publish only these members (default: all except this tool)",
+        num_args=@argparse.ValueRange(),
+      ),
+    ],
+  )
+  let parsed = try cmd.parse(env=Map([])) catch {
+    err => {
+      println("\{err}")
       return 2
     }
   } noraise {
@@ -75,19 +87,11 @@ async fn run() -> Int {
   } else {
     Patch
   }
-  // 互斥在这里校验:parse_args 的未声明 flag 落进 positionals,由数量校验兜底,
-  // 而 `--patch --minor` 同传时两个 flag 均为 true,在此显式拒绝。
-  let kind_count = [
-    parsed.flags.get("patch"),
-    parsed.flags.get("minor"),
-    parsed.flags.get("major"),
-  ].filter(fn(f) { f is Some(true) }).length()
-  if kind_count > 1 {
-    println("release: --patch/--minor/--major are mutually exclusive")
-    return 2
-  }
   let dry_run = parsed.flags.get("dry-run") is Some(true)
-  let selectors : Array[String] = parsed.positional
+  let selectors : Array[String] = match parsed.values.get("modules") {
+    Some(names) => names
+    None => []
+  }
 
   // The tool runs at the workspace root: moon.work must be there.
   let manifest = try @fs.read_file_to_string("moon.work") catch {
@@ -148,7 +152,9 @@ async fn run() -> Int {
   }
   println("release plan (\{mode}):")
   for item in order {
-    println("  \{item.name} \{item.version} -> \{bump_version(item.version, kind)}")
+    println(
+      "  \{item.name} \{item.version} -> \{bump_version(item.version, kind)}",
+    )
   }
   println("  moon work sync")
   if dry_run {
@@ -163,10 +169,12 @@ async fn run() -> Int {
     } noraise {
       text => text
     }
-    try @fs.write_string_to_file(
-      item.dir + "/moon.mod",
-      replace_version(text, item.version, next),
-    ) catch {
+    try
+      @fs.write_string_to_file(
+        item.dir + "/moon.mod",
+        replace_version(text, item.version, next),
+      )
+    catch {
       _ => {
         println("release: cannot write \{item.dir}/moon.mod")
         return 1
@@ -178,7 +186,8 @@ async fn run() -> Int {
   }
   // 2. Sync item pins to the new versions before anything is published, so
   // every published manifest already carries the right pins.
-  let sync = try @process.collect_output("moon", ["work", "sync"], cwd=".")
+  let sync = try
+    @process.collect_output("moon", ["work", "sync"], cwd=".")
   catch {
     e => {
       println("release: moon work sync failed: \{e}")
@@ -196,11 +205,9 @@ async fn run() -> Int {
   // 3. Publish dependencies first.
   for item in order {
     println("publishing \{item.name} ...")
-    let result = try @process.collect_output(
-        "moon",
-        ["publish"],
-        cwd=item.dir,
-      ) catch {
+    let result = try
+      @process.collect_output("moon", ["publish"], cwd=item.dir)
+    catch {
       e => {
         println("release: cannot run moon publish for \{item.name}: \{e}")
         return 1
@@ -242,7 +249,7 @@ fn parse_members(text : String) -> Array[String] {
       if byte.to_int() == 0x22 && start < 0 {
         start = i
       } else if byte.to_int() == 0x22 && start >= 0 {
-        dirs.push(trimmed[start + 1 : i].to_owned())
+        dirs.push(trimmed[start + 1:i].to_owned())
         break
       }
     }
@@ -274,7 +281,7 @@ fn parse_mod(dir : String, text : String) -> Member raise {
             break
           }
         }
-        let module_path = trimmed[1 : stop].to_owned()
+        let module_path = trimmed[1:stop].to_owned()
         let mut base = module_path
         for i, ch in module_path {
           if ch == '@' {
@@ -299,7 +306,7 @@ fn parse_mod(dir : String, text : String) -> Member raise {
   if name == "" || version == "" {
     raise ReleaseError::MissingManifest(dir)
   }
-  { dir, name, version, imports }
+  { dir, name, version, imports, }
 }
 
 ///|
@@ -317,7 +324,7 @@ fn quoted_value(line : String) -> String {
     }
   }
   if start >= 0 && stop > start {
-    line[start + 1 : stop].to_owned()
+    line[start + 1:stop].to_owned()
   } else {
     ""
   }
@@ -349,7 +356,7 @@ fn trim_spaces(text : StringView) -> String {
   } else if start >= stop {
     ""
   } else {
-    text[start : stop].to_owned()
+    text[start:stop].to_owned()
   }
 }
 

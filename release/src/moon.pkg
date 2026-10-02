@@ -1,15 +1,14 @@
 import {
   "moonbitlang/async",
   "moonbitlang/async/process",
-  "moonbitlang/core/env",
+  "moonbitlang/core/argparse",
   "moonbitlang/core/debug",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/x/fs",
-  "peter-jerry-ye/parse_args",
 }
+
+pkgtype(kind: "executable")
 
 options(
   "native-stub": [ "native.c" ],
 )
-
-pkgtype(kind: "executable")
