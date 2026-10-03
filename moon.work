@@ -2,4 +2,7 @@ members = [
   "bm2",
   "notify",
   "release",
+  "fndash",
+  "dateku",
+  "semver",
 ]
