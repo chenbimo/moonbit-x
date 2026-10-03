@@ -1,6 +1,6 @@
 name = "chensuiyi/notify"
 
-version = "0.2.0"
+version = "0.3.0"
 
 source = "src"
 
@@ -21,4 +21,6 @@ repository = "https://github.com/chenbimo/moonbit"
 import {
   "moonbitlang/async@0.22.4",
   "moonbitlang/x@0.5.1",
+  "chensuiyi/dateku@0.1.0",
+  "chensuiyi/fndash@0.1.0",
 }
