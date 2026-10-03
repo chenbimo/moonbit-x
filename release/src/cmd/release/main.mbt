@@ -3,8 +3,8 @@
 ///
 /// 用法:release [--patch|--minor|--major] [--dry-run] [成员名...]
 ///
-/// 流程:递增选中成员版本 → `moon work sync` 同步成员 pin → 按依赖拓扑序
-/// 逐个 `moon publish`。在 workspace 根目录(WSL)运行。
+/// 流程:递增选中成员版本 → 自实现 pin 同步(把新版本写进依赖方 manifest)
+/// → 按依赖拓扑序逐个 `moon publish`。在 workspace 根目录(WSL)运行。
 
 ///|
 /// Communicate the outcome to the shell. `moon publish` output is already on
@@ -29,7 +29,7 @@ const SELF_MODULE : String = "chensuiyi/release"
 async fn run() -> Int {
   let cmd = @argparse.Command(
     "release",
-    about="moon.work multi-module release orchestration: bump versions → dependency order → moon publish per member → moon work sync",
+    about="moon.work multi-module release orchestration: bump versions → dependency order → pin sync → moon publish per member",
     flags=[
       @argparse.FlagArg("patch", about="bump patch version (default)"),
       @argparse.FlagArg("minor", about="bump minor version"),
@@ -144,12 +144,13 @@ async fn run() -> Int {
       "  \{item.name} \{item.version} -> \{@semver.bump(@semver.parse(item.version), kind).to_string()}",
     )
   }
-  println("  moon work sync")
+  println("  pin sync: member manifests pin the versions above")
   if dry_run {
     println("dry-run: nothing written, nothing published")
     return 0
   }
-  // 1. Bump versions on disk.
+  // 1. Bump versions on disk and collect the new pins.
+  let pins : Array[(String, String)] = []
   for item in order {
     let next = @semver.bump(@semver.parse(item.version), kind).to_string()
     let text = try @fs.read_file_to_string(item.dir + "/moon.mod") catch {
@@ -170,26 +171,33 @@ async fn run() -> Int {
     } noraise {
       _ => ()
     }
+    pins.push((item.name, next))
     println("bumped \{item.name}: \{item.version} -> \{next}")
   }
-  // 2. Sync item pins to the new versions before anything is published, so
-  // every published manifest already carries the right pins.
-  let sync = try
-    @process.collect_output("moon", ["work", "sync"], cwd=".")
-  catch {
-    e => {
-      println("release: moon work sync failed: \{e}")
-      return 1
+  // 2. Sync item pins into every member's manifest with our own rewriting
+  // (no moon work sync): deterministic, visible in dry-run, and validated
+  // again server-side at publish time.
+  for item in items {
+    let text = try @fs.read_file_to_string(item.dir + "/moon.mod") catch {
+      _ => ""
+    } noraise {
+      text => text
     }
-  } noraise {
-    output => output
+    let synced = @mwork.sync_pins(text, pins)
+    if synced != text {
+      try
+        @fs.write_string_to_file(item.dir + "/moon.mod", synced)
+      catch {
+        _ => {
+          println("release: cannot write \{item.dir}/moon.mod")
+          return 1
+        }
+      } noraise {
+        _ => ()
+      }
+      println("synced pins in \{item.name}")
+    }
   }
-  if sync.0 != 0 {
-    println("release: moon work sync exited \{sync.0}")
-    println(@utf8.decode_lossy(sync.2.binary()))
-    return 1
-  }
-  println("synced item dependency versions")
   // 3. Publish dependencies first.
   for item in order {
     println("publishing \{item.name} ...")
