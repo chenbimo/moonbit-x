@@ -30,32 +30,23 @@ fn Supervisor::rotate_log(
   path : String,
   copytruncate~ : Bool,
 ) -> Unit {
-  match @fsx.file_size(path) {
-    Some(size) if size > LOG_ROTATE_BYTES =>
-      try {
-        if copytruncate {
-          @fsx.copytruncate(path)
-        } else {
-          @fsx.rotate(path)
-        }
-        log_event(
-          self.state_dir,
-          "bm2d.events.jsonl",
-          "log_rotated",
-          detail=path,
-        )
-      } catch {
-        e =>
-          log_event(
-            self.state_dir,
-            "bm2d.events.jsonl",
-            "log_rotate_failed",
-            detail=path + ": " + e.to_string(),
-          )
-      } noraise {
-        _ => ()
-      }
-    _ => ()
+  let rotated = try
+    @logfly.maybe_rotate(path, LOG_ROTATE_BYTES, copytruncate~)
+  catch {
+    e => {
+      log_event(
+        self.state_dir,
+        "bm2d.events.jsonl",
+        "log_rotate_failed",
+        detail=path + ": " + e.to_string(),
+      )
+      false
+    }
+  } noraise {
+    rotated => rotated
+  }
+  if rotated {
+    log_event(self.state_dir, "bm2d.events.jsonl", "log_rotated", detail=path)
   }
 }
 
@@ -69,8 +60,7 @@ fn Supervisor::write_crash(
   reason : String,
 ) -> Unit {
   let buf = StringBuilder()
-  buf.write_string(@dateku.iso8601(@dateku.now_ms()))
-  buf.write_string(" app=" + inst.app_name)
+  buf.write_string("app=" + inst.app_name)
   buf.write_string(" instance=" + inst.instance_id.to_string())
   buf.write_string(" pid=" + inst.pid.to_string())
   buf.write_string(" reason=" + reason)
@@ -91,7 +81,6 @@ fn Supervisor::write_crash(
     buf.write_string(" limitMb=" + limit)
   }
   buf.write_string(" restartCount=" + inst.restart_count.to_string())
-  buf.write_string("\n")
   let path = "\{self.state_dir}/\{inst.app_name}/logs/\{inst.app_name}-\{inst.instance_id}.crash.log"
-  @fndash.discard(() => @fsx.append_file(path, @utf8.encode(buf.to_string())))
+  @fndash.discard(() => @logfly.plain(path, buf.to_string()))
 }

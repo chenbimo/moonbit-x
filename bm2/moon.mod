@@ -28,4 +28,5 @@ import {
   "chensuiyi/subproc@0.1.0",
   "chensuiyi/fsx@0.1.0",
   "chensuiyi/fndash@0.1.0",
+  "chensuiyi/logfly@0.1.0",
 }

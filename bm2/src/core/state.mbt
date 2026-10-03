@@ -1,17 +1,4 @@
 ///|
-pub(all) struct Event {
-  timestamp : String
-  event : String
-  app : String?
-  instance : Int?
-  pid : Int?
-  detail : String?
-} derive(ToJson)
-
-///|
-pub extend Event with ToJson::{to_json}
-
-///|
 /// Append one management event. Logging failures never interrupt process
 /// supervision, and event data deliberately excludes environment values and
 /// protocol payloads.
@@ -29,20 +16,24 @@ pub fn log_event(
   pid? : Int,
   detail? : String,
 ) -> Unit {
-  let record : Event = {
-    timestamp: @dateku.iso8601(@dateku.now_ms()),
-    event,
-    app,
-    instance,
-    pid,
-    detail,
+  let fields : Array[(String, String)] = []
+  match app {
+    Some(name) => fields.push(("app", @fndash.jstr(name)))
+    None => ()
   }
-  @fndash.discard(() => {
-    @fsx.append_file(
-      state_dir + "/" + file,
-      @utf8.encode(ToJson::to_json(record).stringify() + "\n"),
-    )
-  })
+  match instance {
+    Some(id) => fields.push(("instance", id.to_string()))
+    None => ()
+  }
+  match pid {
+    Some(pid) => fields.push(("pid", pid.to_string()))
+    None => ()
+  }
+  match detail {
+    Some(text) => fields.push(("detail", @fndash.jstr(text)))
+    None => ()
+  }
+  @fndash.discard(() => @logfly.event(state_dir + "/" + file, event, fields))
 }
 
 ///|
