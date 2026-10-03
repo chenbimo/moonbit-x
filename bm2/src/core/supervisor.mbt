@@ -413,10 +413,10 @@ pub fn Supervisor::stop_app(self : Supervisor, app_name : String) -> Unit raise 
     app_name,
     "lifecycle",
     "info",
-    "项目已停止",
-    "项目 " +
+    "Project stopped",
+    "Project " +
     app_name +
-    " 已按请求停止,注册保留,可随时 bm2 start 重新启动。",
+    " stopped as requested; registration kept — run bm2 start to launch it again.",
     "stopped|" + app_name,
   )
   for inst in self.app_instances(app_name) {
@@ -442,10 +442,10 @@ pub fn Supervisor::kill_app(self : Supervisor, app_name : String) -> Unit raise 
     app_name,
     "lifecycle",
     "info",
-    "项目已注销",
-    "项目 " +
+    "Project killed",
+    "Project " +
     app_name +
-    " 已被 kill:实例停止后注册一并移除,bm2 list 不再显示。",
+    " killed: instances stopped and the registration removed; bm2 list no longer shows it.",
     "killed|" + app_name,
   )
   for inst in self.app_instances(app_name) {
@@ -677,7 +677,7 @@ fn Supervisor::handle_exit(
         // plan, but do not burn the consecutive-restart budget. Still
         // log the restart so silent restart storms stay observable.
         self.notify_instance(
-          inst, "lifecycle", "info", "干净退出,自动重新拉起", "进程以退出码 0 结束,且已运行超过 min_uptime,按配置重新拉起(不消耗崩溃预算)。",
+          inst, "lifecycle", "info", "Clean exit, restarting automatically", "Process exited with code 0 after running beyond min_uptime; restarting per plan (crash budget not consumed).",
         )
         log_event(
           self.state_dir,
@@ -711,15 +711,15 @@ fn Supervisor::counted_exit(
       inst,
       "errored",
       "error",
-      "已停止自动恢复",
-      "原因 " +
+      "Auto-recovery stopped",
+      "Cause: " +
       reason +
       detail +
-      ";连续异常 " +
+      "; " +
       inst.restart_count.to_string() +
-      " 次,超出预算 " +
+      " consecutive crashes, over the budget of " +
       app.max_restarts.to_string() +
-      "。修复后重新执行 bm2 start。",
+      ". Fix the issue and run bm2 start again.",
     )
     log_event(
       self.state_dir,
@@ -735,15 +735,15 @@ fn Supervisor::counted_exit(
       inst,
       "crash",
       "warn",
-      "异常退出,将自动重启",
-      "原因 " +
+      "Abnormal exit, restarting automatically",
+      "Cause: " +
       reason +
       detail +
-      ";连续异常 " +
+      "; " +
       inst.restart_count.to_string() +
       "/" +
       app.max_restarts.to_string() +
-      "。",
+      " consecutive crashes; restarting with backoff.",
     )
     log_event(
       self.state_dir,
@@ -758,11 +758,11 @@ fn Supervisor::counted_exit(
 }
 
 ///|
-/// The exit shaped part of a message: "退出码 1" or "信号 SIGKILL".
+/// The exit shaped part of a message: "exit code 1" or "signal SIGKILL".
 fn exit_detail(inst : Instance) -> String {
   match (inst.last_exit_code, inst.last_signal) {
-    (Some(code), _) => ",退出码 " + code.to_string()
-    (None, Some(sig)) => ",信号 " + signal_name(sig)
+    (Some(code), _) => ", exit code " + code.to_string()
+    (None, Some(sig)) => ", signal " + signal_name(sig)
     _ => ""
   }
 }
@@ -857,12 +857,12 @@ fn Supervisor::stop_for_reuseport(
     app.name,
     "reuseport_missing",
     "error",
-    "cluster 模式缺少 reusePort,项目已停止",
-    "项目 " +
+    "Cluster mode missing reusePort; project stopped",
+    "Project " +
     app.name +
-    " 以 cluster 模式监听端口 " +
+    " listens on port " +
     app.port.to_string() +
-    " 但没有开启 reusePort,为避免实例互相抢占端口,已停止该项目。给监听加上 reusePort 后重新执行 bm2 start。",
+    " in cluster mode without reusePort; to keep instances from racing for the port the project has been stopped. Add reusePort to the listener and run bm2 start again.",
     "reuseport_missing|" + app.name,
   )
   self.pending_restart.remove(app.name)
@@ -909,12 +909,12 @@ fn Supervisor::check_memory(self : Supervisor) -> Unit {
                 inst,
                 "memory_limit",
                 "warn",
-                "内存超限,按异常重启",
+                "Memory limit exceeded, restarting",
                 "RSS " +
                 (kb / 1024).to_string() +
-                "MB 超过上限 " +
+                "MB exceeds the limit of " +
                 app.max_memory_mb.to_string() +
-                "MB。",
+                "MB.",
               )
               // Over the limit counts as an abnormal exit: it restarts
               // against the crash budget via the RestartCounted intent.
@@ -1054,16 +1054,16 @@ fn Supervisor::spawn_fresh(self : Supervisor, app_name : String) -> Unit raise {
     app_name,
     "lifecycle",
     "info",
-    "项目已启动",
-    "项目 " +
+    "Project started",
+    "Project " +
     app_name +
-    " 已按配置启动 " +
+    " started " +
     app.instances.to_string() +
-    " 个实例(" +
+    " instance(s) as configured (" +
     app.exec_mode +
-    " 模式,端口 " +
+    " mode, port " +
     app.port.to_string() +
-    ")。",
+    ").",
     "started|" + app_name,
   )
 }
@@ -1147,12 +1147,12 @@ fn Supervisor::mark_spawn_failed(self : Supervisor, inst : Instance) -> Unit {
       inst,
       "errored",
       "error",
-      "已停止自动恢复",
-      "启动失败;连续失败 " +
+      "Auto-recovery stopped",
+      "Spawn failed; " +
       inst.restart_count.to_string() +
-      " 次,超出预算 " +
+      " consecutive failures, over the budget of " +
       app.max_restarts.to_string() +
-      "。请检查 script、cwd 与运行时是否可用。",
+      ". Check script, cwd and runtime availability.",
     )
     log_event(
       self.state_dir,
@@ -1168,12 +1168,11 @@ fn Supervisor::mark_spawn_failed(self : Supervisor, inst : Instance) -> Unit {
       inst,
       "crash",
       "warn",
-      "启动失败,将重试",
-      "连续失败 " +
+      "Spawn failed, retrying",
       inst.restart_count.to_string() +
       "/" +
       app.max_restarts.to_string() +
-      ",退避后重试。",
+      " consecutive failures; retrying with backoff.",
     )
     log_event(
       self.state_dir,

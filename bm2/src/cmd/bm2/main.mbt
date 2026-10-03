@@ -27,37 +27,42 @@ async fn run() -> Int {
   }
   let cmd = @argparse.Command(
     "bm2",
-    about="Linux 下的 Bun / Node.js 进程管理器",
+    about="Process manager for Bun / Node.js on Linux",
     version=VERSION,
     subcommands=[
-      @argparse.Command("start", about="注册并启动当前目录的项目"),
+      @argparse.Command(
+        "start",
+        about="Register and start the project in the current directory",
+      ),
       @argparse.Command(
         "kill",
-        about="停止并注销一个项目",
+        about="Stop and unregister a project",
         flags=[
           @argparse.FlagArg(
             "all",
             short='y',
-            about="停止 bm2d 与全部应用(跳过确认)",
+            about="Stop bm2d and all apps (skip confirmation)",
           ),
         ],
-        positionals=[optional_name("只处理该项目")],
+        positionals=[optional_name("Limit to this project")],
       ),
       @argparse.Command(
         "list",
-        about="显示项目状态",
-        flags=[@argparse.FlagArg("json", about="机器可读 JSON 输出")],
-        positionals=[optional_name("只看该项目")],
+        about="Show project status",
+        flags=[@argparse.FlagArg("json", about="Machine-readable JSON output")],
+        positionals=[optional_name("Limit to this project")],
       ),
       @argparse.Command(
         "reload",
-        about="换用新二进制重启后台服务,应用保持运行",
+        about="Restart the daemon with a new binary; apps keep running",
       ),
-      @argparse.Command("notify", about="向通知目标发送测试消息", positionals=[
-        optional_name("只测该通知目标"),
-      ]),
-      @argparse.Command("upgrade", about="升级 bm2 并无缝应用"),
-      @argparse.Command("version", about="显示版本"),
+      @argparse.Command(
+        "notify",
+        about="Send a test message to notification targets",
+        positionals=[optional_name("Test only this target")],
+      ),
+      @argparse.Command("upgrade", about="Upgrade bm2 and apply it seamlessly"),
+      @argparse.Command("version", about="Show version"),
     ],
   )
   let matches = try cmd.parse(env=Map([])) catch {

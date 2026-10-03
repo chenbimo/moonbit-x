@@ -39,11 +39,11 @@ fn wb_message(level : String, ts_ms : UInt64) -> @notify.Message {
   @notify.Message::new(
     "crash",
     level,
-    "api · 实例异常退出",
-    "退出码 1",
+    "api · Abnormal exit, restarting automatically",
+    "exit code 1",
     "crash|api|0|exit_code",
     ts_ms,
-    fields=[("应用", "api"), ("端口", "3000")],
+    fields=[("app", "api"), ("port", "3000")],
   )
 }
 

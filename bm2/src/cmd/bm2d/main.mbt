@@ -66,10 +66,10 @@ async fn run() -> Int {
       name,
       "daemon",
       "info",
-      "bm2d 已启动",
-      "已接管本项目 " +
+      "bm2d started",
+      "Adopted this project: " +
       sv.online_count(name).to_string() +
-      " 个在线实例。",
+      " online instance(s).",
       "daemon_started|" + name,
     )
   }
@@ -359,10 +359,10 @@ async fn cmd_notify(
   for pair in results {
     let (name, failure) = pair
     match failure {
-      None => lines.push(name + ": 已发送")
+      None => lines.push(name + ": sent")
       Some(reason) => {
         failed += 1
-        lines.push(name + ": 失败 - " + reason)
+        lines.push(name + ": failed - " + reason)
       }
     }
   }

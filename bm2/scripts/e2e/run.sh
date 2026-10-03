@@ -528,7 +528,7 @@ name = "local"
 preset = "webhook"
 url = "http://127.0.0.1:4321/hook"
 EOF
-check "bm2 notify delivers a test message" "local: 已发送" "$(cd "$ACC/plain" && bm2 notify 2>&1)"
+check "bm2 notify delivers a test message" "local: sent" "$(cd "$ACC/plain" && bm2 notify 2>&1)"
 contains "test message reached the webhook" "$ACC/notify/received.log" '"event":"lifecycle"'
 contains "test message names the host" "$ACC/notify/received.log" '"host"'
 check "unknown target is rejected" 1 "$(cd "$ACC/plain" && bm2 notify nosuch >/dev/null 2>&1; echo $?)"
@@ -551,8 +551,8 @@ EOF
 sleep 10
 check "one crash notice despite the loop" 1 "$(grep -c '"event":"crash"' "$ACC/notify/received.log" || true)"
 check "errored notice delivered" 1 "$(grep -c '"event":"errored"' "$ACC/notify/received.log" || true)"
-contains "notice carries the app name" "$ACC/notify/received.log" '"应用":"notif"'
-contains "notice carries the exit code" "$ACC/notify/received.log" '退出码 1'
+contains "notice carries the app name" "$ACC/notify/received.log" '"app":"notif"'
+contains "notice carries the exit code" "$ACC/notify/received.log" 'exit code 1'
 bm2 kill notif >/dev/null 2>&1 || true
 kill "$RECEIVER" 2>/dev/null
 pkill -f "bun .*notify/receiver.ts" 2>/dev/null

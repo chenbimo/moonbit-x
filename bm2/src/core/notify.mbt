@@ -108,7 +108,7 @@ pub fn Notifier::queued(self : Notifier) -> Int {
 /// without waiting for a real incident.
 pub fn test_message(now : UInt64) -> @notify.Message {
   @notify.Message::new(
-    "lifecycle", "info", "bm2 通知测试", "如果你看到这条消息,说明该通知目标配置可用。",
+    "lifecycle", "info", "bm2 notification test", "If you see this message, the notification target is configured correctly.",
     "notify-test", now,
   )
 }

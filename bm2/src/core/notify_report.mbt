@@ -43,17 +43,17 @@ fn human_duration(ms : UInt64) -> String {
 ///|
 fn instance_fields(inst : Instance, now : UInt64) -> Array[(String, String)] {
   let fields : Array[(String, String)] = [
-    ("应用", inst.app_name),
-    ("实例", inst.instance_id.to_string()),
-    ("模式", inst.exec_mode),
-    ("端口", inst.port.to_string()),
+    ("app", inst.app_name),
+    ("instance", inst.instance_id.to_string()),
+    ("mode", inst.exec_mode),
+    ("port", inst.port.to_string()),
     ("PID", inst.pid.to_string()),
-    ("状态", inst.status.as_string()),
-    ("启动次数", inst.times.to_string()),
-    ("连续异常", inst.restart_count.to_string()),
+    ("status", inst.status.as_string()),
+    ("starts", inst.times.to_string()),
+    ("crashes", inst.restart_count.to_string()),
   ]
   if inst.started_at_ms > 0UL && now > inst.started_at_ms {
-    fields.push(("运行时长", human_duration(now - inst.started_at_ms)))
+    fields.push(("uptime", human_duration(now - inst.started_at_ms)))
   }
   fields
 }
@@ -124,9 +124,9 @@ pub fn Supervisor::notify_project(
       signature,
       now,
       fields=[
-        ("主机", self.notify.host),
-        ("项目", app_name),
-        ("实例数", instances.to_string()),
+        ("host", self.notify.host),
+        ("project", app_name),
+        ("instances", instances.to_string()),
       ],
     ),
   )
@@ -154,7 +154,7 @@ fn Supervisor::report_line(
     inst.instance_id.to_string() +
     " " +
     inst.status.as_string()
-  line = line + " · 端口 " + inst.port.to_string()
+  line = line + " · port " + inst.port.to_string()
   if inst.status is Online {
     match @subproc.read_rss_kb(inst.pid) {
       Some(kb) => line = line + " · RSS " + (kb / 1024).to_string() + "MB"
@@ -170,7 +170,7 @@ fn Supervisor::report_line(
       None => ()
     }
     if inst.started_at_ms > 0UL && now > inst.started_at_ms {
-      line = line + " · 已运行 " + human_duration(now - inst.started_at_ms)
+      line = line + " · uptime " + human_duration(now - inst.started_at_ms)
     }
   } else if inst.last_reason is Some(reason) {
     line = line + " · " + reason
@@ -179,7 +179,7 @@ fn Supervisor::report_line(
     match self.apps.get(inst.app_name) {
       Some(app) =>
         line = line +
-          " · 连续异常 " +
+          " · restarts " +
           inst.restart_count.to_string() +
           "/" +
           app.max_restarts.to_string()
@@ -219,16 +219,16 @@ fn Supervisor::build_report(
       }
     None => ()
   }
-  let fields : Array[(String, String)] = [("主机", self.notify.host)]
+  let fields : Array[(String, String)] = [("host", self.notify.host)]
   if policy.report_fields.contains("status") {
-    fields.push(("在线实例", online.to_string()))
-    fields.push(("异常实例", other.to_string()))
+    fields.push(("online", online.to_string()))
+    fields.push(("abnormal", other.to_string()))
   }
   if policy.report_fields.contains("ports") {
     match self.apps.get(app_name) {
       Some(config) => {
-        fields.push(("执行模式", config.exec_mode))
-        fields.push(("端口", config.port.to_string()))
+        fields.push(("mode", config.exec_mode))
+        fields.push(("port", config.port.to_string()))
       }
       None => ()
     }
@@ -240,9 +240,9 @@ fn Supervisor::build_report(
     } else {
       "info"
     },
-    "bm2 体检 · \{app_name}",
+    "bm2 health report · \{app_name}",
     if lines.length() == 0 {
-      "当前没有实例。"
+      "No instances."
     } else {
       lines.join("\n")
     },
@@ -274,12 +274,12 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
               inst,
               "threshold",
               "warn",
-              "重启过频",
-              "连续异常重启 " +
+              "Restarting too often",
+              "Consecutive abnormal restarts " +
               inst.restart_count.to_string() +
-              " 次,已达到阈值 " +
+              ", threshold " +
               policy.threshold_restarts.to_string() +
-              "。",
+              " reached.",
             )
           }
           if inst.status is Online || inst.status is Stopped {
@@ -292,12 +292,12 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
                 inst,
                 "threshold",
                 "warn",
-                "实例长时间未恢复",
-                "实例已处于 " +
+                "Instance down for too long",
+                "Instance has been " +
                 inst.status.as_string() +
-                " 超过 " +
+                " for over " +
                 policy.threshold_offline_min.to_string() +
-                " 分钟。",
+                " minutes.",
               )
             }
           }
@@ -343,14 +343,14 @@ pub fn Supervisor::notify_memory_pressure(
       inst,
       "threshold",
       "warn",
-      "内存接近上限",
+      "Memory approaching limit",
       "RSS " +
       (rss_kb / 1024).to_string() +
-      "MB,已达上限 " +
-      (limit_kb / 1024).to_string() +
-      "MB 的 " +
+      "MB, which is " +
       policy.threshold_rss_percent.to_string() +
-      "% 。",
+      "% of the " +
+      (limit_kb / 1024).to_string() +
+      "MB limit.",
     )
   }
 }
