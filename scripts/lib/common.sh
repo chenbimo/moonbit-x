@@ -5,27 +5,23 @@
 # scoped by which top-level directories a change actually touches, so a
 # notify-only commit never pays for bm2's suite.
 
-# Members with gates: directory | module name.
-# Root-level files (moon.work, README.md, AGENTS.md) map to the pseudo-member
-# "root": they have no compile gate, only the commit-message format.
+# Members with gates: directory names parsed from moon.work, so a newly
+# added member is gated automatically. Root-level files (moon.work,
+# README.md, AGENTS.md) map to the pseudo-member "root": they have no
+# compile gate, only the commit-message format.
 
-member_dirs=(
-  "bm2"
-  "notify"
-  "release"
-)
+workspace_root=$(git rev-parse --show-toplevel)
+member_dirs=($(grep -oE '^  "[^"]+"' "$workspace_root/moon.work" | tr -d ' "'))
 
 # Package paths fed to `moon fmt` / `moon check` for one member directory.
+# bm2 has multiple packages; every other member is the single src package.
 member_pkgs() {
   case "$1" in
     bm2)
       printf '%s\n' "bm2/src bm2/src/config bm2/src/core bm2/src/process bm2/src/ipc bm2/src/cmd/bm2 bm2/src/cmd/bm2d"
       ;;
-    notify)
-      printf '%s\n' "notify/src"
-      ;;
-    release)
-      printf '%s\n' "release/src"
+    *)
+      printf '%s\n' "$1/src"
       ;;
   esac
 }
@@ -59,18 +55,15 @@ member_check() {
 }
 
 # Per-member full gate for pre-push. bm2 runs its own verify.sh (unit tests,
-# native build, end-to-end); the other members run their tests or build.
+# native build, end-to-end); every other member runs its package tests.
 member_verify() {
   local root="$1" dir="$2"
   case "$dir" in
     bm2)
       bash "$root/bm2/scripts/verify.sh"
       ;;
-    notify)
-      moon test -p chensuiyi/notify --target native
-      ;;
-    release)
-      moon build --target native release/src
+    *)
+      moon test "$dir/src" --target native
       ;;
   esac
 }
