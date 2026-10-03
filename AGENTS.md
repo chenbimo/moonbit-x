@@ -12,6 +12,7 @@
 - 发包:WSL 中 `bash scripts/release.sh`(首次发包前在 WSL `moon login` 登录 mooncakes)
 - 平台:bm2 仅 Linux;新增成员若含平台相关 C 桩,必须在本文档标注
 - **产品文案**:面向全球开发者,CLI 帮助/输出/错误与通知文案统一英文,不做 i18n;README 用单文件内嵌双语(notify/release 模式);事件日志与状态文件保持语言中立键
+- **可执行成员布局**:命令 main 放 `src/cmd/<命令名>` 子包,二进制名与目录名一致(bm2 与 release 模式);本地安装走各成员 `scripts/install-local.sh`(构建 + 装入 `~/.local/bin`,安装态运行,不用 moon run 发包)
 
 ## 测试粒度
 
