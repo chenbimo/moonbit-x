@@ -5,6 +5,8 @@ import {
   "moonbitlang/core/debug",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/x/fs",
+  "chensuiyi/fndash",
+  "chensuiyi/semver",
 }
 
 pkgtype(kind: "executable")

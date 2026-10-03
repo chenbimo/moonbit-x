@@ -19,4 +19,6 @@ keywords = [ "release", "publish", "workspace", "moon.work" ]
 import {
   "moonbitlang/async@0.22.4",
   "moonbitlang/x@0.5.1",
+  "chensuiyi/fndash@0.1.0",
+  "chensuiyi/semver@0.1.0",
 }

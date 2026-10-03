@@ -26,13 +26,6 @@ async fn main {
 const SELF_MODULE : String = "chensuiyi/release"
 
 ///|
-enum Kind {
-  Patch
-  Minor
-  Major
-}
-
-///|
 /// One workspace item: directory, module name, current version, and the
 /// item modules it imports.
 struct Member {
@@ -80,12 +73,12 @@ async fn run() -> Int {
   } noraise {
     parsed => parsed
   }
-  let kind : Kind = if parsed.flags.get("major") is Some(true) {
-    Major
+  let kind : @semver.Bump = if parsed.flags.get("major") is Some(true) {
+    @semver.Bump::Major
   } else if parsed.flags.get("minor") is Some(true) {
-    Minor
+    @semver.Bump::Minor
   } else {
-    Patch
+    @semver.Bump::Patch
   }
   let dry_run = parsed.flags.get("dry-run") is Some(true)
   // 互斥在这里校验(工具侧),argparse 不做 flag 间冲突检测;
@@ -159,14 +152,14 @@ async fn run() -> Int {
   // workspace item order).
   let order = topo_sort(selected, items)
   let mode = match kind {
-    Patch => "--patch"
-    Minor => "--minor"
-    Major => "--major"
+    @semver.Bump::Patch => "--patch"
+    @semver.Bump::Minor => "--minor"
+    @semver.Bump::Major => "--major"
   }
   println("release plan (\{mode}):")
   for item in order {
     println(
-      "  \{item.name} \{item.version} -> \{bump_version(item.version, kind)}",
+      "  \{item.name} \{item.version} -> \{@semver.bump(@semver.parse(item.version), kind).to_string()}",
     )
   }
   println("  moon work sync")
@@ -176,7 +169,7 @@ async fn run() -> Int {
   }
   // 1. Bump versions on disk.
   for item in order {
-    let next = bump_version(item.version, kind)
+    let next = @semver.bump(@semver.parse(item.version), kind).to_string()
     let text = try @fs.read_file_to_string(item.dir + "/moon.mod") catch {
       _ => ""
     } noraise {
@@ -245,7 +238,7 @@ fn parse_members(text : String) -> Array[String] {
   let dirs = []
   let mut inside = false
   for line in text.split("\n") {
-    let trimmed = trim_spaces(line)
+    let trimmed = @fndash.trim_spaces(line)
     if !inside {
       if trimmed.has_prefix("members") && trimmed.contains("[") {
         inside = true
@@ -277,7 +270,7 @@ fn parse_mod(dir : String, text : String) -> Member raise {
   let imports : Array[String] = []
   let mut in_imports = false
   for line in text.split("\n") {
-    let trimmed = trim_spaces(line)
+    let trimmed = @fndash.trim_spaces(line)
     if trimmed.has_prefix("import") {
       in_imports = true
       continue
@@ -311,66 +304,15 @@ fn parse_mod(dir : String, text : String) -> Member raise {
       continue
     }
     if trimmed.has_prefix("name") && trimmed.contains("=") {
-      name = quoted_value(trimmed)
+      name = @fndash.quoted_value(trimmed)
     } else if trimmed.has_prefix("version") && trimmed.contains("=") {
-      version = quoted_value(trimmed)
+      version = @fndash.quoted_value(trimmed)
     }
   }
   if name == "" || version == "" {
     raise ReleaseError::MissingManifest(dir)
   }
   { dir, name, version, imports, }
-}
-
-///|
-fn quoted_value(line : String) -> String {
-  let mut start = -1
-  let mut stop = line.length()
-  for i, ch in line {
-    if ch == '"' {
-      if start < 0 {
-        start = i
-      } else {
-        stop = i
-        break
-      }
-    }
-  }
-  if start >= 0 && stop > start {
-    line[start + 1:stop].to_owned()
-  } else {
-    ""
-  }
-}
-
-///|
-fn trim_spaces(text : StringView) -> String {
-  let mut start = 0
-  let end = text.length()
-  while start < end {
-    let ch = text[start].to_int()
-    if ch == 0x20 || ch == 0x09 {
-      start += 1
-    } else {
-      break
-    }
-  }
-  let mut stop = end
-  while stop > start {
-    let ch = text[stop - 1].to_int()
-    if ch == 0x20 || ch == 0x09 || ch == 0x0D {
-      stop -= 1
-    } else {
-      break
-    }
-  }
-  if start == 0 && stop == end {
-    text.to_owned()
-  } else if start >= stop {
-    ""
-  } else {
-    text[start:stop].to_owned()
-  }
 }
 
 ///|
@@ -469,7 +411,7 @@ fn replace_version(text : String, old : String, next : String) -> String {
   let out : Array[String] = []
   let mut done = false
   for line in lines {
-    if !done && trim_spaces(line) == target {
+    if !done && @fndash.trim_spaces(line) == target {
       out.push(replacement)
       done = true
     } else {
@@ -479,41 +421,3 @@ fn replace_version(text : String, old : String, next : String) -> String {
   out.join("\n")
 }
 
-///|
-/// Semantic version bump on `a.b.c`.
-fn bump_version(version : String, kind : Kind) -> String {
-  let parts : Array[Int] = []
-  for piece in version.split(".") {
-    let value = match parse_int(trim_spaces(piece)) {
-      Some(parsed) => parsed
-      None => 0
-    }
-    parts.push(value)
-  }
-  let (a, b, c) = match parts.length() {
-    1 => (parts[0], 0, 0)
-    2 => (parts[0], parts[1], 0)
-    _ => (parts[0], parts[1], parts[2])
-  }
-  match kind {
-    Major => "\{a + 1}.0.0"
-    Minor => "\{a}.\{b + 1}.0"
-    Patch => "\{a}.\{b}.\{c + 1}"
-  }
-}
-
-///|
-fn parse_int(text : String) -> Int? {
-  if text.is_empty() {
-    return None
-  }
-  let mut value = 0
-  for i in 0..<text.length() {
-    let ch = text[i].to_int()
-    if ch < 0x30 || ch > 0x39 {
-      return None
-    }
-    value = value * 10 + (ch - 0x30)
-  }
-  Some(value)
-}
