@@ -1,6 +1,6 @@
 # moonbit 工作区约定
 
-`moon.work` 单仓库多模块,当前成员:`bm2` / `notify` / `release`(见根目录 `moon.work`)。
+`moon.work` 单仓库多模块,当前成员:`bm2` / `notify` / `release` / `fndash` / `dateku` / `semver` / `subproc` / `fsx`(见根目录 `moon.work`)。
 
 ## 工具链
 
@@ -11,6 +11,16 @@
 - 验证:bm2 在 WSL 中执行 `bash bm2/scripts/verify.sh`;各成员的验证方式见各自文档
 - 发包:WSL 中 `bash scripts/release.sh`(首次发包前在 WSL `moon login` 登录 mooncakes)
 - 平台:bm2 仅 Linux;新增成员若含平台相关 C 桩,必须在本文档标注
+
+## 测试粒度
+
+验证分三档,由内向外升级,**禁止拿全量当快检**(每改一步跑一次全量是错误用法):
+
+1. **快检**(改完即跑,秒级):`moon check <改动的包路径> --deny-warn --warn-list +implicit_impl_as_method --target-dir _build-wsl`——抓语法/类型/未用导入/警告
+2. **成员测试**(功能完成时,十秒级):`moon test -p chensuiyi/<成员> --target native`,`-p` 可多值
+3. **全量**(批次收尾一次):工作区根 `moon test --target native`,交付前再加 `bash bm2/scripts/verify.sh`(e2e)
+
+e2e 不拆段不过滤(112 例共享守护进程与状态,拆分省不了多少还添脆弱);测试内的 sleep 是真实时序语义,不为速度压缩。
 
 ## 提交格式(严格遵守)
 
@@ -61,4 +71,4 @@ git config core.hooksPath .githooks
 
 - 只提交根级文件时,pre-commit 自动跳过成员检查
 - 确需绕过:`git commit --no-verify`(例外应 rare)
-- 钩子实现:`scripts/hook-dispatch.sh`(跨环境分发)+ `scripts/{pre-commit,commit-msg,pre-push}.sh` + `scripts/lib/common.sh`(成员注册表;新增成员在此登记检查命令)
+- 钩子实现:`scripts/hook-dispatch.sh`(跨环境分发)+ `scripts/{pre-commit,commit-msg,pre-push}.sh` + `scripts/lib/common.sh`(成员注册表动态解析 `moon.work`,新增成员自动纳管,无需登记)
