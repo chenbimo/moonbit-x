@@ -1,6 +1,6 @@
 ///|
 async fn main {
-  @process.exit(run())
+  @subproc.exit(run())
 }
 
 ///|
@@ -9,10 +9,10 @@ const VERSION : String = "0.5.0"
 
 ///|
 async fn run() -> Int {
-  match @process.platform_error() {
+  match @subproc.platform_error() {
     None => ()
     Some(msg) => {
-      @process.eprintln("bm2: " + msg)
+      @subproc.eprintln("bm2: " + msg)
       return 1
     }
   }
@@ -102,7 +102,7 @@ async fn run() -> Int {
   // Bare `kill` stops bm2d and all apps, so it requires the -y flag.
   match (command, app_arg) {
     ("kill", None) if !confirmed => {
-      @process.eprintln(
+      @subproc.eprintln(
         "bm2: refusing to stop bm2d and all apps; use 'bm2 kill -y' to confirm",
       )
       return 1
@@ -112,7 +112,7 @@ async fn run() -> Int {
   let cwd = match @env.current_dir() {
     Some(dir) => dir
     None => {
-      @process.eprintln("bm2: cannot determine current directory")
+      @subproc.eprintln("bm2: cannot determine current directory")
       return 1
     }
   }
@@ -122,7 +122,7 @@ async fn run() -> Int {
   let config = try @config.load(config_path) catch {
     e => {
       if command == "start" {
-        @process.eprintln("bm2: " + e.to_string())
+        @subproc.eprintln("bm2: " + e.to_string())
         return 1
       }
       None
@@ -198,13 +198,13 @@ async fn run() -> Int {
         }
         return 0
       }
-      @process.eprintln(
+      @subproc.eprintln(
         "bm2: bm2d did not start, see " + state_dir + "/bm2d.log",
       )
       return 1
     }
     Unresponsive(message) => {
-      @process.eprintln("bm2: " + message)
+      @subproc.eprintln("bm2: " + message)
       return 1
     }
     other => raise other
@@ -213,7 +213,7 @@ async fn run() -> Int {
   }
   match @core.protocol_problem(resp.protocol) {
     Some(problem) => {
-      @process.eprintln("bm2: " + problem)
+      @subproc.eprintln("bm2: " + problem)
       return 1
     }
     None => ()
@@ -260,7 +260,7 @@ async fn run() -> Int {
       0
     }
   } else {
-    @process.eprintln(resp.message)
+    @subproc.eprintln(resp.message)
     1
   }
 }
@@ -275,18 +275,18 @@ async fn cmd_upgrade(state_dir : String) -> Int {
   let home = match @env.get_env_var("HOME") {
     Some(h) if !h.is_empty() => h
     _ => {
-      @process.eprintln("bm2: cannot determine HOME (moon toolchain required)")
+      @subproc.eprintln("bm2: cannot determine HOME (moon toolchain required)")
       return 1
     }
   }
   if !run_moon("update" + "\u{0}") {
-    @process.eprintln("bm2: 'moon update' failed; run it manually and retry")
+    @subproc.eprintln("bm2: 'moon update' failed; run it manually and retry")
     return 1
   }
   let index_path = home + "/.moon/registry/index/user/chensuiyi/bm2.index"
   let text = try @fs.read_file_to_string(index_path) catch {
     _ => {
-      @process.eprintln("bm2: no release on mooncakes yet")
+      @subproc.eprintln("bm2: no release on mooncakes yet")
       return 1
     }
   } noraise {
@@ -295,7 +295,7 @@ async fn cmd_upgrade(state_dir : String) -> Int {
   let latest = match latest_version(text) {
     Some(v) => v
     None => {
-      @process.eprintln("bm2: cannot read the mooncakes index")
+      @subproc.eprintln("bm2: cannot read the mooncakes index")
       return 1
     }
   }
@@ -313,7 +313,7 @@ async fn cmd_upgrade(state_dir : String) -> Int {
     self_dir() +
     "\u{0}"
   if !run_moon(args) {
-    @process.eprintln(
+    @subproc.eprintln(
       "bm2: 'moon install' failed; run it manually:\n  moon install chensuiyi/bm2/... --bin " +
       self_dir(),
     )
@@ -356,7 +356,7 @@ async fn swap_daemon(state_dir : String) -> Bool {
   // The old daemon removes its control-plane files just before exiting;
   // wait for it, then start the fresh daemon which adopts the running apps.
   if !wait_daemon_exit(state_dir) {
-    @process.eprintln("bm2: bm2d did not exit; swap aborted")
+    @subproc.eprintln("bm2: bm2d did not exit; swap aborted")
     return false
   }
   @async.sleep(50)
@@ -380,7 +380,7 @@ async fn swap_daemon(state_dir : String) -> Bool {
       true
     }
     None => {
-      @process.eprintln(
+      @subproc.eprintln(
         "bm2: bm2d did not start, see " + state_dir + "/bm2d.log",
       )
       false
@@ -415,7 +415,7 @@ fn latest_version(text : String) -> String? {
 /// Directory containing the running bm2 binary, where moon install
 /// replaces it (and bm2d) in place.
 fn self_dir() -> String {
-  let exe = try @process.self_exe() catch {
+  let exe = try @subproc.self_exe() catch {
     _ => return "."
   } noraise {
     found => found
@@ -439,26 +439,26 @@ fn self_dir() -> String {
 /// user sees the download/compile progress live. True on exit code 0.
 fn run_moon(args_blob : String) -> Bool {
   let pid = try
-    @process.spawn({
+    @subproc.spawn({
       bun_path: "moon",
       script: args_blob,
       cwd: "/",
       out_log: "",
       err_log: "",
-      env_blob: @process.base_env_blob(),
+      env_blob: @subproc.base_env_blob(),
     })
   catch {
     _ => return false
   } noraise {
     spawned => spawned
   }
-  let reaped = try @process.wait_child(pid) catch {
+  let reaped = try @subproc.wait_child(pid) catch {
     _ => None
   } noraise {
     result => result
   }
   match reaped {
-    Some((_, @process.ChildExit::Exited(0))) => true
+    Some((_, @subproc.ChildExit::Exited(0))) => true
     _ => false
   }
 }
@@ -601,8 +601,8 @@ async fn request_with_recovery(
     }
     None => ()
   }
-  @process.discard(() => @process.unlink(state_dir + "/" + @ipc.PORT_FILE))
-  @process.discard(() => @process.unlink(state_dir + "/" + @ipc.TOKEN_FILE))
+  @fndash.discard(() => @fsx.unlink(state_dir + "/" + @ipc.PORT_FILE))
+  @fndash.discard(() => @fsx.unlink(state_dir + "/" + @ipc.TOKEN_FILE))
   @core.log_event(state_dir, "bm2.events.jsonl", "stale_socket_removed")
   let retry = match connect_or_start(state_dir) {
     Some(pair) => pair
@@ -686,15 +686,15 @@ async fn ensure_daemon(state_dir : String) -> (@socket.Tcp, String) {
     }
     None => {
       @core.log_event(state_dir, "bm2.events.jsonl", "daemon_spawn_requested")
-      @process.mkdir_p(state_dir, mode=0o700)
+      @fsx.mkdir_p(state_dir, mode=0o700)
       ignore(
-        @process.spawn({
+        @subproc.spawn({
           bun_path: "bm2d",
           script: "",
           cwd: "/",
           out_log: state_dir + "/bm2d.log",
           err_log: state_dir + "/bm2d.log",
-          env_blob: @process.base_env_blob(),
+          env_blob: @subproc.base_env_blob(),
         }),
       )
       for _ in 0..<60 {
@@ -704,7 +704,7 @@ async fn ensure_daemon(state_dir : String) -> (@socket.Tcp, String) {
           None => ()
         }
       }
-      raise @process.ProcessError::Failed(op="ensure_daemon", errno=2)
+      raise @subproc.ProcessError::Failed(op="ensure_daemon", errno=2)
     }
   }
 }

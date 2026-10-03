@@ -30,13 +30,13 @@ fn Supervisor::rotate_log(
   path : String,
   copytruncate~ : Bool,
 ) -> Unit {
-  match @process.file_size(path) {
+  match @fsx.file_size(path) {
     Some(size) if size > LOG_ROTATE_BYTES =>
       try {
         if copytruncate {
-          @process.copytruncate(path)
+          @fsx.copytruncate(path)
         } else {
-          @process.rotate(path)
+          @fsx.rotate(path)
         }
         log_event(
           self.state_dir,
@@ -93,7 +93,5 @@ fn Supervisor::write_crash(
   buf.write_string(" restartCount=" + inst.restart_count.to_string())
   buf.write_string("\n")
   let path = "\{self.state_dir}/\{inst.app_name}/logs/\{inst.app_name}-\{inst.instance_id}.crash.log"
-  @process.discard(() => {
-    @process.append_file(path, @utf8.encode(buf.to_string()))
-  })
+  @fndash.discard(() => @fsx.append_file(path, @utf8.encode(buf.to_string())))
 }

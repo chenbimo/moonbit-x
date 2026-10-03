@@ -25,4 +25,7 @@ import {
   "chensuiyi/notify@0.3.0",
   "chensuiyi/dateku@0.1.0",
   "chensuiyi/semver@0.1.0",
+  "chensuiyi/subproc@0.1.0",
+  "chensuiyi/fsx@0.1.0",
+  "chensuiyi/fndash@0.1.0",
 }

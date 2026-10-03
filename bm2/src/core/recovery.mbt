@@ -64,7 +64,7 @@ pub fn Supervisor::recover(self : Supervisor) -> Unit {
         e => {
           // Corrupt state can never be reconciled; remove it so it stops
           // blocking future recoveries with repeated noise.
-          @process.discard(() => @process.unlink(path))
+          @fndash.discard(() => @fsx.unlink(path))
           log_event(
             self.state_dir,
             "bm2d.events.jsonl",
@@ -78,8 +78,8 @@ pub fn Supervisor::recover(self : Supervisor) -> Unit {
       } noraise {
         loaded => loaded
       }
-      if state.pid <= 0 || !@process.pid_alive(state.pid) {
-        @process.discard(() => @process.unlink(path))
+      if state.pid <= 0 || !@subproc.pid_alive(state.pid) {
+        @fndash.discard(() => @fsx.unlink(path))
         log_event(
           self.state_dir,
           "bm2d.events.jsonl",
@@ -93,9 +93,9 @@ pub fn Supervisor::recover(self : Supervisor) -> Unit {
       }
       // Pin the recorded process with a pidfd before trusting the pid:
       // a pid that was reused by an unrelated process must never be managed.
-      let pidfd = try @process.pidfd_open(state.pid) catch {
+      let pidfd = try @subproc.pidfd_open(state.pid) catch {
         _ => {
-          @process.discard(() => @process.unlink(path))
+          @fndash.discard(() => @fsx.unlink(path))
           log_event(
             self.state_dir,
             "bm2d.events.jsonl",
@@ -117,10 +117,10 @@ pub fn Supervisor::recover(self : Supervisor) -> Unit {
       // writes the reserved BM2_* variables, so a foreign process (or one
       // started manually with the same script) is never adopted.
       let environ = try
-        @process.read_small("/proc/\{state.pid}/environ", cap=131072)
+        @fsx.read_small("/proc/\{state.pid}/environ", cap=131072)
       catch {
         _ => {
-          @process.close(pidfd)
+          @subproc.close(pidfd)
           inst.pidfd = 0
           self.mark_pid_conflict(inst)
           continue
@@ -143,7 +143,7 @@ pub fn Supervisor::recover(self : Supervisor) -> Unit {
           pid=state.pid,
         )
       } else {
-        @process.close(pidfd)
+        @subproc.close(pidfd)
         inst.pidfd = 0
         self.mark_pid_conflict(inst)
       }

@@ -37,8 +37,8 @@ pub fn log_event(
     pid,
     detail,
   }
-  @process.discard(() => {
-    @process.append_file(
+  @fndash.discard(() => {
+    @fsx.append_file(
       state_dir + "/" + file,
       @utf8.encode(ToJson::to_json(record).stringify() + "\n"),
     )
@@ -136,7 +136,7 @@ pub fn save_project(
   info : ProjectInfo,
 ) -> Unit raise {
   let json = ToJson::to_json(info).stringify()
-  @process.write_atomic(project_path(state_dir, name), @utf8.encode(json))
+  @fsx.write_atomic(project_path(state_dir, name), @utf8.encode(json))
 }
 
 ///|
@@ -146,7 +146,7 @@ pub fn load_project(path : String) -> ProjectInfo raise {
 
 ///|
 pub fn remove_project(state_dir : String, name : String) -> Unit raise {
-  @process.unlink(project_path(state_dir, name))
+  @fsx.unlink(project_path(state_dir, name))
 }
 
 ///|
@@ -154,7 +154,7 @@ pub fn remove_project(state_dir : String, name : String) -> Unit raise {
 pub fn save_state(state_dir : String, inst : Instance) -> Unit raise {
   let json = ToJson::to_json(InstanceState::of(inst)).stringify()
   let path = state_path(state_dir, inst.app_name, inst.instance_id)
-  @process.write_atomic(path, @utf8.encode(json))
+  @fsx.write_atomic(path, @utf8.encode(json))
 }
 
 ///|
@@ -170,6 +170,6 @@ pub fn load_state(path : String) -> InstanceState raise {
 pub fn resolve_state_dir() -> String {
   match @env.get_env_var("HOME") {
     Some(home) if !home.is_empty() => home + "/.bm2"
-    _ => "/tmp/bm2-" + @process.get_uid().to_string()
+    _ => "/tmp/bm2-" + @subproc.get_uid().to_string()
   }
 }

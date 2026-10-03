@@ -25,7 +25,7 @@ fn wb_config(name : String, cwd : String, port : Int) -> @config.Config {
 
 ///|
 fn wb_sv(root : String, config : @config.Config) -> Supervisor raise {
-  @process.mkdir_p(root)
+  @fsx.mkdir_p(root)
   let sv = Supervisor::new(state_dir=root + "/state", bun_path="/bin/sh")
   sv.register(config, root + "/bm2.toml")
   sv
@@ -98,23 +98,23 @@ test "the adoption fingerprint demands the exact reserved triple" {
 /// A state file left over the daemon restart points at a pid that no longer
 /// exists: the file is dropped so it cannot mislead later recoveries.
 test "recover discards state whose pid is gone" {
-  let root = "/tmp/bm2-recovery-wbtest-dead-\{@process.get_pid()}"
+  let root = "/tmp/bm2-recovery-wbtest-dead-\{@subproc.get_pid()}"
   let dir = root + "/api"
-  @process.mkdir_p(dir)
+  @fsx.mkdir_p(dir)
   @fs.write_string_to_file(dir + "/fixture.sh", "exit 0\n")
   let config = wb_config("api", dir, 4502)
   let sv = wb_sv(root, config)
   let state_dir = root + "/state"
   // A pid that certainly no longer exists: spawn it, then reap it.
-  let pid = @process.spawn({
+  let pid = @subproc.spawn({
     bun_path: "/bin/sh",
     script: "",
     cwd: dir,
     out_log: "",
     err_log: "",
-    env_blob: @process.base_env_blob(),
+    env_blob: @subproc.base_env_blob(),
   })
-  ignore(@process.wait_child(pid))
+  ignore(@subproc.wait_child(pid))
   let path = state_path(state_dir, "api", 0)
   @fs.write_string_to_file(path, state_json("api", 0, pid, 4502))
   sv.recover()
@@ -134,9 +134,7 @@ test "recover discards state whose pid is gone" {
 fn wait_for_fingerprint(pid : Int, app : String, timeout_ms : Int) -> Bool {
   let deadline = @env.now() + timeout_ms.to_uint64()
   while @env.now() < deadline {
-    let bytes = try
-      @process.read_small("/proc/\{pid}/environ", cap=4096)
-    catch {
+    let bytes = try @fsx.read_small("/proc/\{pid}/environ", cap=4096) catch {
       _ => Bytes::make(0, b'\x00')
     } noraise {
       data => data
@@ -144,7 +142,7 @@ fn wait_for_fingerprint(pid : Int, app : String, timeout_ms : Int) -> Bool {
     if @utf8.decode_lossy(bytes).contains("BM2_APP_NAME=" + app) {
       return true
     }
-    @process.sleep_ms(10)
+    @subproc.sleep_ms(10)
   }
   false
 }
@@ -153,9 +151,9 @@ fn wait_for_fingerprint(pid : Int, app : String, timeout_ms : Int) -> Bool {
 /// The adoption path itself: a live process carrying the reserved variables is
 /// taken over with its pid and pidfd, and its recorded counters are restored.
 test "recover adopts a live instance that carries the reserved variables" {
-  let root = "/tmp/bm2-recovery-wbtest-live-\{@process.get_pid()}"
+  let root = "/tmp/bm2-recovery-wbtest-live-\{@subproc.get_pid()}"
   let dir = root + "/api"
-  @process.mkdir_p(dir)
+  @fsx.mkdir_p(dir)
   @fs.write_string_to_file(
     dir + "/fixture.sh",
     "#!/bin/sh\nwhile true; do sleep 1; done\n",
@@ -163,13 +161,13 @@ test "recover adopts a live instance that carries the reserved variables" {
   let config = wb_config("api", dir, 4503)
   let sv = wb_sv(root, config)
   let state_dir = root + "/state"
-  let pid = @process.spawn({
+  let pid = @subproc.spawn({
     bun_path: "/bin/sh",
     script: dir + "/fixture.sh",
     cwd: dir,
     out_log: dir + "/out.log",
     err_log: dir + "/err.log",
-    env_blob: @process.instance_env_blob(config.name, 0, config.port),
+    env_blob: @subproc.instance_env_blob(config.name, 0, config.port),
   })
   assert_true(wait_for_fingerprint(pid, config.name, 5000))
   let path = state_path(state_dir, "api", 0)
@@ -184,7 +182,7 @@ test "recover adopts a live instance that carries the reserved variables" {
     read_events(state_dir + "/bm2d.events.jsonl").contains("instance_adopted"),
   )
   // And the adopted process is left running.
-  assert_true(@process.pid_alive(pid))
-  @process.discard(() => @process.kill_group(pid, @process.SIGKILL))
-  @process.drain_child(pid)
+  assert_true(@subproc.pid_alive(pid))
+  @fndash.discard(() => @subproc.kill_group(pid, @subproc.SIGKILL))
+  @subproc.drain_child(pid)
 }

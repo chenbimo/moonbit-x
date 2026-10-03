@@ -72,10 +72,10 @@ pub fn Supervisor::new(
   bun_path~ : String,
   memory_interval_ms? : Int = 5000,
 ) -> Supervisor raise {
-  @process.mkdir_p(state_dir, mode=0o700)
+  @fsx.mkdir_p(state_dir, mode=0o700)
   // mkdir only applies its mode to directories it creates; tighten a state
   // dir left behind by an older version, since it holds app logs.
-  @process.discard(() => @process.chmod(state_dir, 0o700))
+  @fndash.discard(() => @fsx.chmod(state_dir, 0o700))
   {
     apps: Map([]),
     instances: Map([]),
@@ -87,7 +87,7 @@ pub fn Supervisor::new(
     last_memory_check_ms: 0UL,
     last_log_check_ms: 0UL,
     last_reuseport_probe_ms: 0UL,
-    notify: Notifier::new(state_dir, @process.hostname()),
+    notify: Notifier::new(state_dir, @subproc.hostname()),
     last_notify_check_ms: 0UL,
     last_report_ms: Map([]),
   }
@@ -107,7 +107,7 @@ pub fn Supervisor::register(
 ) -> Unit raise {
   let name = config.name
   self.reject_port_conflict(config)
-  @process.mkdir_p("\{self.state_dir}/\{name}/logs", mode=0o700)
+  @fsx.mkdir_p("\{self.state_dir}/\{name}/logs", mode=0o700)
   match self.instances.get(name) {
     Some(_) => self.apps[name] = config
     None => {
@@ -121,7 +121,7 @@ pub fn Supervisor::register(
   }
   self.pending_restart.remove(name)
   self.pending_remove.remove(name)
-  @process.discard(() => save_project(self.state_dir, name, { config_path, }))
+  @fndash.discard(() => save_project(self.state_dir, name, { config_path, }))
 }
 
 ///|
@@ -302,7 +302,7 @@ fn Instance::mark_starting(inst : Instance) -> Unit {
 fn Instance::clear_process(inst : Instance) -> Unit {
   inst.pid = 0
   if inst.pidfd > 0 {
-    @process.close(inst.pidfd)
+    @subproc.close(inst.pidfd)
     inst.pidfd = 0
   }
 }
@@ -453,7 +453,7 @@ pub fn Supervisor::kill_app(self : Supervisor, app_name : String) -> Unit raise 
     if inst.alive() {
       inst.mark_stopping(Stop, "manual_kill")
       inst.kill_deadline_ms = 0UL
-      @process.discard(() => @process.kill_group(inst.pid, @process.SIGKILL))
+      @fndash.discard(() => @subproc.kill_group(inst.pid, @subproc.SIGKILL))
     } else if !(inst.status is Errored) {
       inst.exit_intent = Stop
       self.mark_stopped(inst)
@@ -537,7 +537,7 @@ fn Supervisor::check_removals(self : Supervisor) -> Unit {
     self.pending_remove.remove(name)
     self.apps.remove(name)
     self.instances.remove(name)
-    @process.discard(() => remove_project(self.state_dir, name))
+    @fndash.discard(() => remove_project(self.state_dir, name))
     log_event(
       self.state_dir,
       "bm2d.events.jsonl",
@@ -575,14 +575,14 @@ fn Supervisor::reap(self : Supervisor) -> Unit {
     for inst in arr {
       if inst.pidfd > 0 {
         // Child processes (including zombies) are reaped by waitid.
-        let reaped = try @process.wait_pidfd(inst.pidfd, nohang=true) catch {
+        let reaped = try @subproc.wait_pidfd(inst.pidfd, nohang=true) catch {
           _ => None
         } noraise {
           result => result
         }
         match reaped {
           Some((pid, exit)) => {
-            @process.close(inst.pidfd)
+            @subproc.close(inst.pidfd)
             inst.pidfd = 0
             self.handle_exit(app, inst, pid, Some(exit))
           }
@@ -590,8 +590,8 @@ fn Supervisor::reap(self : Supervisor) -> Unit {
             // waitid reports nothing: alive, stopped, or an adopted
             // (non-waitable) instance, in which case the pidfd readability
             // check plus pid liveness is the only available exit signal.
-            if @process.pidfd_exited(inst.pidfd, inst.pid) {
-              @process.close(inst.pidfd)
+            if @subproc.pidfd_exited(inst.pidfd, inst.pid) {
+              @subproc.close(inst.pidfd)
               inst.pidfd = 0
               self.handle_exit(app, inst, inst.pid, None)
             }
@@ -607,7 +607,7 @@ fn Supervisor::handle_exit(
   app : @config.Config,
   inst : Instance,
   pid : Int,
-  exit : @process.ChildExit?,
+  exit : @subproc.ChildExit?,
 ) -> Unit {
   let now = @dateku.now_ms()
   match exit {
@@ -615,19 +615,19 @@ fn Supervisor::handle_exit(
       inst.last_exit_code = None
       inst.last_signal = None
     }
-    Some(@process.ChildExit::Exited(code)) => {
+    Some(@subproc.ChildExit::Exited(code)) => {
       inst.last_exit_code = Some(code)
       inst.last_signal = None
     }
-    Some(@process.ChildExit::Signaled(sig)) => {
+    Some(@subproc.ChildExit::Signaled(sig)) => {
       inst.last_exit_code = None
       inst.last_signal = Some(sig)
     }
   }
   let exit_detail = match exit {
     None => "unknown"
-    Some(@process.ChildExit::Exited(code)) => "exit_code=" + code.to_string()
-    Some(@process.ChildExit::Signaled(sig)) => "signal=" + signal_name(sig)
+    Some(@subproc.ChildExit::Exited(code)) => "exit_code=" + code.to_string()
+    Some(@subproc.ChildExit::Signaled(sig)) => "signal=" + signal_name(sig)
   }
   log_event(
     self.state_dir,
@@ -660,15 +660,15 @@ fn Supervisor::handle_exit(
       // a spawn is never misread as a long-lived process.
       let uptime = elapsed_since(inst.started_at_ms)
       let abnormal = match exit {
-        Some(@process.ChildExit::Exited(0)) =>
+        Some(@subproc.ChildExit::Exited(0)) =>
           uptime < app.min_uptime_ms.to_uint64()
         _ => true
       }
       if abnormal {
         let reason = match exit {
-          Some(@process.ChildExit::Exited(0)) => "quick_exit"
-          Some(@process.ChildExit::Exited(_)) => "exit_code"
-          Some(@process.ChildExit::Signaled(_)) => "signal"
+          Some(@subproc.ChildExit::Exited(0)) => "quick_exit"
+          Some(@subproc.ChildExit::Exited(_)) => "exit_code"
+          Some(@subproc.ChildExit::Signaled(_)) => "signal"
           None => "terminated"
         }
         self.counted_exit(app, inst, now, reason)
@@ -805,7 +805,7 @@ fn Supervisor::check_reuseport(self : Supervisor, now : UInt64) -> Unit {
       if inst.reuseport_deadline_ms == 0UL {
         inst.reuseport_deadline_ms = now + REUSEPORT_PROBE_TIMEOUT_MS
       }
-      let rc = @process.probe_reuseport(inst.port)
+      let rc = @subproc.probe_reuseport(inst.port)
       if rc == 1 {
         inst.reuseport = ReuseOk
         log_event(
@@ -892,7 +892,7 @@ fn Supervisor::check_memory(self : Supervisor) -> Unit {
     }
     for inst in arr {
       if inst.status is Online {
-        match @process.read_rss_kb(inst.pid) {
+        match @subproc.read_rss_kb(inst.pid) {
           Some(kb) =>
             if kb > app.max_memory_mb * 1024 {
               inst.last_rss_kb = kb
@@ -937,7 +937,7 @@ fn Supervisor::check_deadlines(self : Supervisor, now : UInt64) -> Unit {
       if inst.kill_deadline_ms != 0UL && now >= inst.kill_deadline_ms {
         inst.kill_deadline_ms = 0UL
         if inst.alive() {
-          @process.discard(() => @process.kill_group(inst.pid, @process.SIGKILL))
+          @fndash.discard(() => @subproc.kill_group(inst.pid, @subproc.SIGKILL))
         }
       }
     }
@@ -1048,7 +1048,7 @@ fn Supervisor::spawn_fresh(self : Supervisor, app_name : String) -> Unit raise {
     // One instance's spawn failure must not abort the loop: the failure
     // is already marked and retried with backoff by mark_spawn_failed,
     // and the remaining instances still deserve their spawn.
-    @process.discard(() => self.spawn_instance(app, inst))
+    @fndash.discard(() => self.spawn_instance(app, inst))
   }
   self.notify_project(
     app_name,
@@ -1075,18 +1075,18 @@ fn Supervisor::spawn_instance(
   inst : Instance,
 ) -> Unit raise {
   let logs = "\{self.state_dir}/\{app.name}/logs"
-  @process.mkdir_p(logs, mode=0o700)
+  @fsx.mkdir_p(logs, mode=0o700)
   let base = "\{logs}/\{app.name}-\{inst.instance_id}"
   inst.mark_starting()
   let runtime = if app.runtime == "node" { "node" } else { self.bun_path }
   let pid = try
-    @process.spawn({
+    @subproc.spawn({
       bun_path: runtime,
       script: app.script,
       cwd: app.cwd,
       out_log: base + ".out.log",
       err_log: base + ".error.log",
-      env_blob: @process.instance_env_blob(
+      env_blob: @subproc.instance_env_blob(
         app.name,
         inst.instance_id,
         inst.port,
@@ -1106,11 +1106,11 @@ fn Supervisor::spawn_instance(
   // Pin the process with a pidfd so liveness and exit detection stay
   // correct even if the pid gets reused later. Failure (kernel < 5.3)
   // is treated as a spawn failure: an unmanaged process is unacceptable.
-  let pidfd = try @process.pidfd_open(pid) catch {
+  let pidfd = try @subproc.pidfd_open(pid) catch {
     e => {
-      @process.discard(() => @process.kill_group(pid, @process.SIGKILL))
+      @fndash.discard(() => @subproc.kill_group(pid, @subproc.SIGKILL))
       // Reap the killed child so a failed spawn leaves no zombie.
-      @process.drain_child(pid)
+      @subproc.drain_child(pid)
       raise IoError(e.to_string())
     }
   } noraise {
@@ -1200,7 +1200,7 @@ fn terminate(
   reason : String,
 ) -> Unit {
   inst.mark_stopping(intent, reason)
-  @process.discard(() => @process.kill_group(inst.pid, @process.SIGTERM))
+  @fndash.discard(() => @subproc.kill_group(inst.pid, @subproc.SIGTERM))
   inst.kill_deadline_ms = @dateku.now_ms() + app.stop_timeout_ms.to_uint64()
 }
 

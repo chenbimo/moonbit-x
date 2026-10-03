@@ -1,6 +1,6 @@
 ///|
 fn wb_setup(root : String, port : Int) -> Supervisor raise {
-  @process.mkdir_p(root)
+  @fsx.mkdir_p(root)
   let config : @config.Config = {
     name: "wbapp",
     cwd: root,
@@ -23,7 +23,7 @@ fn wb_setup(root : String, port : Int) -> Supervisor raise {
 
 ///|
 test "spawn failures back off and exhaust the budget into errored" {
-  let root = "/tmp/bm2-wbtest-spawn-\{@process.get_pid()}"
+  let root = "/tmp/bm2-wbtest-spawn-\{@subproc.get_pid()}"
   let sv = wb_setup(root, 4451)
   let inst = sv.instance("wbapp", 0)
   sv.mark_spawn_failed(inst)
@@ -47,24 +47,24 @@ test "spawn failures back off and exhaust the budget into errored" {
 
 ///|
 test "rotate_logs rotates oversized app logs with copytruncate" {
-  let root = "/tmp/bm2-wbtest-rotate-\{@process.get_pid()}"
+  let root = "/tmp/bm2-wbtest-rotate-\{@subproc.get_pid()}"
   let sv = wb_setup(root, 4452)
   let base = root + "/state/wbapp/logs/wbapp-0"
   // 11 MB exceeds the 10 MB rotation threshold.
-  @process.append_file(base + ".out.log", Bytes::make(11 * 1024 * 1024, b'x'))
-  @process.append_file(base + ".crash.log", @utf8.encode("small\n"))
+  @fsx.append_file(base + ".out.log", Bytes::make(11 * 1024 * 1024, b'x'))
+  @fsx.append_file(base + ".crash.log", @utf8.encode("small\n"))
   sv.rotate_logs()
-  match @process.file_size(base + ".out.log.1") {
+  match @fsx.file_size(base + ".out.log.1") {
     Some(size) => assert_true(size > 10L * 1024L * 1024L)
     None => fail("expected rotated generation .out.log.1")
   }
-  assert_eq(@process.file_size(base + ".out.log"), Some(0L))
+  assert_eq(@fsx.file_size(base + ".out.log"), Some(0L))
   assert_false(@fs.path_exists(base + ".crash.log.1"))
 }
 
 ///|
 async test "wait_settled gives up after the deadline" {
-  let root = "/tmp/bm2-wbtest-settle-\{@process.get_pid()}"
+  let root = "/tmp/bm2-wbtest-settle-\{@subproc.get_pid()}"
   let sv = wb_setup(root, 4453)
   let inst = sv.instance("wbapp", 0)
   inst.status = Restarting

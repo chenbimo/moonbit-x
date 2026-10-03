@@ -156,7 +156,7 @@ fn Supervisor::report_line(
     inst.status.as_string()
   line = line + " · 端口 " + inst.port.to_string()
   if inst.status is Online {
-    match @process.read_rss_kb(inst.pid) {
+    match @subproc.read_rss_kb(inst.pid) {
       Some(kb) => line = line + " · RSS " + (kb / 1024).to_string() + "MB"
       None => ()
     }

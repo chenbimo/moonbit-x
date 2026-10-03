@@ -1,7 +1,6 @@
 import {
   "moonbitlang/async",
   "chensuiyi/bm2/config",
-  "chensuiyi/bm2/process",
   "chensuiyi/notify",
   "moonbitlang/core/env",
   "moonbitlang/core/json",
@@ -9,4 +8,7 @@ import {
   "moonbitlang/x/fs",
   "chensuiyi/dateku",
   "chensuiyi/semver",
+  "chensuiyi/subproc",
+  "chensuiyi/fsx",
+  "chensuiyi/fndash",
 }
