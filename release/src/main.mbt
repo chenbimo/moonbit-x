@@ -29,7 +29,7 @@ const SELF_MODULE : String = "chensuiyi/release"
 async fn run() -> Int {
   let cmd = @argparse.Command(
     "release",
-    about="moon.work 多模块发布编排: 版本递增 → 依赖排序 → 逐个 moon publish → moon work sync",
+    about="moon.work multi-module release orchestration: bump versions → dependency order → moon publish per member → moon work sync",
     flags=[
       @argparse.FlagArg("patch", about="bump patch version (default)"),
       @argparse.FlagArg("minor", about="bump minor version"),
