@@ -20,7 +20,7 @@
 [项目名](类型) 提交内容
 ```
 
-- **项目名**:成员目录名——`bm2` / `notify` / `release`;根级文件(`moon.work`、`README.md`、本文件)用 `root`
+- **项目名**:成员目录名(moon.work 全体成员,如 `bm2` / `notify` / `release` / `fndash` / `dateku` / `semver`);根级文件(`moon.work`、`README.md`、本文件)用 `root`
 - **类型**:`feat` / `fix` / `docs` / `refactor` / `test` / `chore`
 - **提交内容**:一句话说明,中文,结尾不加句号
 
