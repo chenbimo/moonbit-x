@@ -420,4 +420,3 @@ fn replace_version(text : String, old : String, next : String) -> String {
   }
   out.join("\n")
 }
-
