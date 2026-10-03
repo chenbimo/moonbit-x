@@ -7,4 +7,6 @@ members = [
   "semver",
   "subproc",
   "fsx",
+  "logfly",
+  "mwork",
 ]
