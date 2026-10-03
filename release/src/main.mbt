@@ -26,24 +26,6 @@ async fn main {
 const SELF_MODULE : String = "chensuiyi/release"
 
 ///|
-/// One workspace item: directory, module name, current version, and the
-/// item modules it imports.
-struct Member {
-  dir : String
-  name : String
-  version : String
-  imports : Array[String]
-}
-
-///|
-suberror ReleaseError {
-  MissingManifest(String)
-} derive(Debug)
-
-///|
-pub extend ReleaseError with @debug.Debug::{to_repr}
-
-///|
 async fn run() -> Int {
   let cmd = @argparse.Command(
     "release",
@@ -108,13 +90,13 @@ async fn run() -> Int {
   } noraise {
     text => text
   }
-  let dirs = parse_members(manifest)
+  let dirs = @mwork.parse_members(manifest)
   if dirs.is_empty() {
     println("release: moon.work declares no items")
     return 2
   }
   // Read every item manifest.
-  let items : Array[Member] = []
+  let items : Array[@mwork.Member] = []
   for dir in dirs {
     let text = try @fs.read_file_to_string(dir + "/moon.mod") catch {
       _ => {
@@ -124,11 +106,11 @@ async fn run() -> Int {
     } noraise {
       text => text
     }
-    items.push(parse_mod(dir, text))
+    items.push(@mwork.parse_mod(dir, text))
   }
   // Selection: selector names match a item directory or module name; no
   // arguments means everything except this tool itself.
-  let selected : Array[Member] = []
+  let selected : Array[@mwork.Member] = []
   for item in items {
     if item.name == SELF_MODULE {
       continue
@@ -150,7 +132,7 @@ async fn run() -> Int {
   }
   // Publish order: dependencies of selected items first (Kahn, stable by
   // workspace item order).
-  let order = topo_sort(selected, items)
+  let order = @mwork.topo_sort(selected, items)
   let mode = match kind {
     @semver.Bump::Patch => "--patch"
     @semver.Bump::Minor => "--minor"
@@ -178,7 +160,7 @@ async fn run() -> Int {
     try
       @fs.write_string_to_file(
         item.dir + "/moon.mod",
-        replace_version(text, item.version, next),
+        @mwork.replace_version(text, item.version, next),
       )
     catch {
       _ => {
@@ -232,191 +214,3 @@ async fn run() -> Int {
   0
 }
 
-///|
-/// Directory names from the `items` list of moon.work.
-fn parse_members(text : String) -> Array[String] {
-  let dirs = []
-  let mut inside = false
-  for line in text.split("\n") {
-    let trimmed = @fndash.trim_spaces(line)
-    if !inside {
-      if trimmed.has_prefix("members") && trimmed.contains("[") {
-        inside = true
-      }
-      continue
-    }
-    if trimmed.has_prefix("]") || trimmed.has_prefix("#") {
-      break
-    }
-    // A item line looks like `"bm2",` — keep the quoted part.
-    let bytes = @utf8.encode(trimmed)
-    let mut start = -1
-    for i, byte in bytes {
-      if byte.to_int() == 0x22 && start < 0 {
-        start = i
-      } else if byte.to_int() == 0x22 && start >= 0 {
-        dirs.push(trimmed[start + 1:i].to_owned())
-        break
-      }
-    }
-  }
-  dirs
-}
-
-///|
-fn parse_mod(dir : String, text : String) -> Member raise {
-  let mut name = ""
-  let mut version = ""
-  let imports : Array[String] = []
-  let mut in_imports = false
-  for line in text.split("\n") {
-    let trimmed = @fndash.trim_spaces(line)
-    if trimmed.has_prefix("import") {
-      in_imports = true
-      continue
-    }
-    if in_imports {
-      if trimmed.has_prefix("\"") {
-        // An import line: strip the surrounding quotes and any @version
-        // suffix. The line starts with the opening quote at index 0, so the
-        // scan for the closing one starts at 1.
-        let mut stop = trimmed.length()
-        for i in 1..<trimmed.length() {
-          if trimmed[i].to_int() == 0x22 {
-            stop = i
-            break
-          }
-        }
-        let module_path = trimmed[1:stop].to_owned()
-        let mut base = module_path
-        for i, ch in module_path {
-          if ch == '@' {
-            base = module_path[:i].to_owned()
-            break
-          }
-        }
-        imports.push(base)
-        continue
-      }
-      if trimmed.has_prefix("}") {
-        in_imports = false
-      }
-      continue
-    }
-    if trimmed.has_prefix("name") && trimmed.contains("=") {
-      name = @fndash.quoted_value(trimmed)
-    } else if trimmed.has_prefix("version") && trimmed.contains("=") {
-      version = @fndash.quoted_value(trimmed)
-    }
-  }
-  if name == "" || version == "" {
-    raise ReleaseError::MissingManifest(dir)
-  }
-  { dir, name, version, imports, }
-}
-
-///|
-/// Order selected items so that a item never publishes before a selected
-/// item it imports. Stable: ties keep the moon.work item order.
-fn topo_sort(selected : Array[Member], items : Array[Member]) -> Array[Member] {
-  // Member name → item, for import resolution.
-  let by_name : Map[String, Member] = Map([])
-  for item in items {
-    by_name[item.name] = item
-  }
-  let selected_names : Map[String, Unit] = Map([])
-  for item in selected {
-    selected_names[item.name] = ()
-  }
-  // Kahn's algorithm over the selected subgraph.
-  let deps : Map[String, Int] = Map([])
-  let dependents : Map[String, Array[String]] = Map([])
-  for item in selected {
-    deps[item.name] = 0
-    dependents[item.name] = []
-  }
-  for item in selected {
-    for imported in item.imports {
-      match by_name.get(imported) {
-        Some(target) =>
-          if selected_names.contains(target.name) {
-            // item imports target: target publishes first.
-            let current = match deps.get(item.name) {
-              Some(count) => count
-              None => 0
-            }
-            deps[item.name] = current + 1
-            dependents[target.name].push(item.name)
-          }
-        None => ()
-      }
-    }
-  }
-  let order : Array[Member] = []
-  let ready : Array[String] = []
-  for item in selected {
-    let count = match deps.get(item.name) {
-      Some(count) => count
-      None => 0
-    }
-    if count == 0 {
-      ready.push(item.name)
-    }
-  }
-  while ready.length() > 0 {
-    let name = ready.remove(0)
-    for item in selected {
-      if item.name == name {
-        order.push(item)
-        break
-      }
-    }
-    match dependents.get(name) {
-      Some(list) =>
-        for dependent in list {
-          let rest = match deps.get(dependent) {
-            Some(count) => count - 1
-            None => 0
-          }
-          deps[dependent] = rest
-          if rest == 0 {
-            ready.push(dependent)
-          }
-        }
-      None => ()
-    }
-  }
-  // Cycles cannot happen between real modules; append leftovers defensively.
-  for item in selected {
-    let mut found = false
-    for done in order {
-      if done.name == item.name {
-        found = true
-        break
-      }
-    }
-    if !found {
-      order.push(item)
-    }
-  }
-  order
-}
-
-///|
-/// Replace `version = "old"` with `version = "next"` in a moon.mod text.
-fn replace_version(text : String, old : String, next : String) -> String {
-  let target = "version = \"" + old + "\""
-  let replacement = "version = \"" + next + "\""
-  let lines = text.split("\n")
-  let out : Array[String] = []
-  let mut done = false
-  for line in lines {
-    if !done && @fndash.trim_spaces(line) == target {
-      out.push(replacement)
-      done = true
-    } else {
-      out.push(line.to_owned())
-    }
-  }
-  out.join("\n")
-}

@@ -2,11 +2,10 @@ import {
   "moonbitlang/async",
   "moonbitlang/async/process",
   "moonbitlang/core/argparse",
-  "moonbitlang/core/debug",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/x/fs",
-  "chensuiyi/fndash",
   "chensuiyi/semver",
+  "chensuiyi/mwork",
 }
 
 pkgtype(kind: "executable")
