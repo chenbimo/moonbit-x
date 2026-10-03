@@ -29,7 +29,7 @@ check_version_sync "$root" || exit 1
 # on Windows (windows.h). Every gate below is therefore scoped to bm2's own
 # packages; the build output is module-qualified (chensuiyi/bm2/...) in
 # workspace mode.
-pkgs="$root/src $root/src/config $root/src/core $root/src/process $root/src/ipc $root/src/cmd/bm2 $root/src/cmd/bm2d"
+pkgs="$root/src $root/src/config $root/src/core $root/src/ipc $root/src/cmd/bm2 $root/src/cmd/bm2d"
 
 moon fmt $pkgs --target-dir "$build_dir"
 

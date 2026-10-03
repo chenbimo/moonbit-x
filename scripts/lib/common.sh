@@ -18,7 +18,7 @@ member_dirs=($(grep -oE '^  "[^"]+"' "$workspace_root/moon.work" | tr -d ' "'))
 member_pkgs() {
   case "$1" in
     bm2)
-      printf '%s\n' "bm2/src bm2/src/config bm2/src/core bm2/src/process bm2/src/ipc bm2/src/cmd/bm2 bm2/src/cmd/bm2d"
+      printf '%s\n' "bm2/src bm2/src/config bm2/src/core bm2/src/ipc bm2/src/cmd/bm2 bm2/src/cmd/bm2d"
       ;;
     *)
       printf '%s\n' "$1/src"

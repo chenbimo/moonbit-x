@@ -48,6 +48,8 @@ dirty_snapshot() {
 
 pkgs=""
 for dir in $changed; do
+  # "root" is the pseudo-member for root-level files: no compile gate.
+  [ "$dir" = "root" ] && continue
   pkgs="$pkgs $(member_pkgs "$dir")"
 done
 
