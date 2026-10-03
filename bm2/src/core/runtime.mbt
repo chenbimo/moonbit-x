@@ -25,7 +25,7 @@ pub fn Supervisor::check_runtime(
   runtime : String,
 ) -> Unit raise SupervisorError {
   let min_text = if runtime == "node" { MIN_NODE } else { MIN_BUN }
-  let min = parse_version(min_text)
+  let min = @semver.parse(min_text)
   let out = "\{self.state_dir}/runtime-version.tmp"
   let problem = try
     @process.spawn({
@@ -48,10 +48,10 @@ pub fn Supervisor::check_runtime(
           } noraise {
             data => @utf8.decode_lossy(data)
           }
-          let version = parse_version(text)
-          if version == (0, 0, 0) {
+          let version = @semver.parse(text)
+          if version == { major: 0, minor: 0, patch: 0, } {
             Some("cannot parse \{runtime} --version output")
-          } else if version_at_least(version, min) {
+          } else if @semver.compare(version, min) >= 0 {
             None
           } else {
             Some(
@@ -79,79 +79,4 @@ pub fn Supervisor::check_runtime(
     Some(msg) => raise RuntimeRejected(msg)
     None => ()
   }
-}
-
-///|
-/// First `major.minor.patch` triple in text: skips any prefix ("v",
-/// product names) and stops at the first non-version character, so
-/// pre-release suffixes ("1.4.0-beta") compare as their release triple.
-fn parse_version(text : String) -> (Int, Int, Int) {
-  let buf = StringBuilder()
-  let mut started = false
-  for c in text {
-    if !started {
-      if c is ('0'..='9') {
-        started = true
-        buf.write_char(c)
-      }
-    } else if c is ('0'..='9') || c == '.' {
-      buf.write_char(c)
-    } else {
-      break
-    }
-  }
-  let parts = buf.to_string().split(".").to_array()
-  (segment(parts, 0), segment(parts, 1), segment(parts, 2))
-}
-
-///|
-fn segment(parts : Array[StringView], i : Int) -> Int {
-  if i < parts.length() {
-    parse_num(parts[i].to_owned())
-  } else {
-    0
-  }
-}
-
-///|
-/// Numeric prefix of one version segment; non-digits stop the scan.
-fn parse_num(s : String) -> Int {
-  let mut n = 0
-  for c in s {
-    if !(c is ('0'..='9')) {
-      break
-    }
-    n = n * 10 + c.to_int() - 48
-  }
-  n
-}
-
-///|
-/// Compare two version strings: -1, 0, 1. Both sides go through the same
-/// parser as the minimum-version check, so a "v" prefix or a pre-release
-/// suffix ("0.3.0-beta") compares as its release triple instead of
-/// corrupting the result with garbage arithmetic.
-pub fn version_compare(a : String, b : String) -> Int {
-  compare_version_triple(parse_version(a), parse_version(b))
-}
-
-///|
-fn version_at_least(actual : (Int, Int, Int), min : (Int, Int, Int)) -> Bool {
-  compare_version_triple(actual, min) >= 0
-}
-
-///|
-/// Segment-by-segment ordering of two parsed versions; the single place
-/// that knows how a version triple is ordered.
-fn compare_version_triple(a : (Int, Int, Int), b : (Int, Int, Int)) -> Int {
-  if a.0 != b.0 {
-    return if a.0 < b.0 { -1 } else { 1 }
-  }
-  if a.1 != b.1 {
-    return if a.1 < b.1 { -1 } else { 1 }
-  }
-  if a.2 != b.2 {
-    return if a.2 < b.2 { -1 } else { 1 }
-  }
-  0
 }

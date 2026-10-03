@@ -56,8 +56,8 @@ fn make_sv(root : String, config : @config.Config) -> @core.Supervisor raise {
 
 ///|
 async fn drive(sv : @core.Supervisor, ms : Int) -> Unit {
-  let end = @core.now_ms() + ms.to_uint64()
-  while @core.now_ms() < end {
+  let end = @dateku.now_ms() + ms.to_uint64()
+  while @dateku.now_ms() < end {
     sv.tick()
     @process.sleep_ms(20)
   }
@@ -80,8 +80,8 @@ async test "crash loop restarts then reaches errored" {
   let sv = make_sv(root, app_config("api", dir, 4100))
   sv.start_app("api")
   let inst = sv.instance("api", 0)
-  let deadline = @core.now_ms() + 5000UL
-  while @core.now_ms() < deadline && !(inst.status is @core.Status::Errored) {
+  let deadline = @dateku.now_ms() + 5000UL
+  while @dateku.now_ms() < deadline && !(inst.status is @core.Status::Errored) {
     sv.tick()
     @process.sleep_ms(20)
   }
@@ -348,18 +348,6 @@ async test "a zero restart budget parks the instance on the first crash" {
 }
 
 ///|
-test "iso8601 handles epoch, leap days and rollover" {
-  assert_eq(@core.iso8601(0UL), "1970-01-01T00:00:00.000Z")
-  // 2024 is a leap year, 2100 is not (divisible by 100 but not 400).
-  assert_eq(@core.iso8601(1709164800000UL), "2024-02-29T00:00:00.000Z")
-  assert_eq(@core.iso8601(1709251200000UL), "2024-03-01T00:00:00.000Z")
-  assert_eq(@core.iso8601(951782400000UL), "2000-02-29T00:00:00.000Z")
-  assert_eq(@core.iso8601(4107542400000UL), "2100-03-01T00:00:00.000Z")
-  // Year, month, day and millisecond padding all at their boundary values.
-  assert_eq(@core.iso8601(1704067199999UL), "2023-12-31T23:59:59.999Z")
-}
-
-///|
 async test "register accepts structural change and restart applies it" {
   let root = "/tmp/bm2-core-test-reload-struct"
   let dir = make_app_dir(root, "api", "sleep 30\n")
@@ -440,15 +428,6 @@ test "resolve_state_dir uses fixed home directory" {
         "/tmp/bm2-" + @process.get_uid().to_string(),
       )
   }
-}
-
-///|
-test "iso8601 formats epoch and current time" {
-  assert_eq(@core.iso8601(0UL), "1970-01-01T00:00:00.000Z")
-  let now = @core.iso8601(@core.now_ms())
-  assert_eq(now.length(), 24)
-  assert_true(now.has_prefix("20"))
-  assert_true(now.has_suffix("Z"))
 }
 
 ///|

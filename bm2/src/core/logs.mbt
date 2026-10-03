@@ -69,7 +69,7 @@ fn Supervisor::write_crash(
   reason : String,
 ) -> Unit {
   let buf = StringBuilder()
-  buf.write_string(iso8601(now_ms()))
+  buf.write_string(@dateku.iso8601(@dateku.now_ms()))
   buf.write_string(" app=" + inst.app_name)
   buf.write_string(" instance=" + inst.instance_id.to_string())
   buf.write_string(" pid=" + inst.pid.to_string())

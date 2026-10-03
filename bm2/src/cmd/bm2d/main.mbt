@@ -347,7 +347,7 @@ async fn cmd_notify(
       policy.targets,
       policy.timeout_ms,
       req.notify_target,
-      @core.test_message(@core.now_ms()),
+      @core.test_message(@dateku.now_ms()),
     )
   if results.length() == 0 {
     return @core.Response::error(
@@ -471,7 +471,7 @@ fn infos_of(
   sv : @core.Supervisor,
   names : Array[String],
 ) -> Array[@core.InstanceInfo] {
-  let now = @core.now_ms()
+  let now = @dateku.now_ms()
   let infos = []
   for name in names {
     try {

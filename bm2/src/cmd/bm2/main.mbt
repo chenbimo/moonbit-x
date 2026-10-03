@@ -299,7 +299,7 @@ async fn cmd_upgrade(state_dir : String) -> Int {
       return 1
     }
   }
-  if @core.version_compare(latest, VERSION) <= 0 {
+  if @semver.compare(@semver.parse(latest), @semver.parse(VERSION)) <= 0 {
     println("bm2 is up to date (" + VERSION + ")")
     return 0
   }
@@ -474,7 +474,7 @@ async fn poll_settled(
   app : String?,
   timeout_ms : Int,
 ) -> Array[@core.InstanceInfo] {
-  let deadline = @core.now_ms() + timeout_ms.to_uint64()
+  let deadline = @dateku.now_ms() + timeout_ms.to_uint64()
   let mut last : Array[@core.InstanceInfo] = []
   let poll_req : @core.Request = {
     protocol: Some(@core.PROTOCOL_VERSION),
@@ -508,7 +508,7 @@ async fn poll_settled(
       Some(r) if !r.ok && command == "kill" => break
       _ => ()
     }
-    if @core.now_ms() > deadline {
+    if @dateku.now_ms() > deadline {
       break
     }
   }

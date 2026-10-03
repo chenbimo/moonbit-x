@@ -80,7 +80,7 @@ pub fn Supervisor::notify_instance(
   title : String,
   body : String,
 ) -> Unit {
-  let now = now_ms()
+  let now = @dateku.now_ms()
   self.notify.emit(
     self.project_policy(inst.app_name),
     inst.app_name,
@@ -108,7 +108,7 @@ pub fn Supervisor::notify_project(
   body : String,
   signature : String,
 ) -> Unit {
-  let now = now_ms()
+  let now = @dateku.now_ms()
   let instances = match self.instances.get(app_name) {
     Some(arr) => arr.length()
     None => 0

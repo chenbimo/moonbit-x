@@ -30,7 +30,7 @@ pub fn log_event(
   detail? : String,
 ) -> Unit {
   let record : Event = {
-    timestamp: iso8601(now_ms()),
+    timestamp: @dateku.iso8601(@dateku.now_ms()),
     event,
     app,
     instance,
@@ -86,7 +86,7 @@ fn InstanceState::of(inst : Instance) -> InstanceState {
     pgid: inst.pid,
     port: inst.port,
     status: inst.status.as_string(),
-    started_at: iso8601(inst.started_at_ms),
+    started_at: @dateku.iso8601(inst.started_at_ms),
     times: Some(inst.times),
     restart_count: inst.restart_count,
     last_exit_code: inst.last_exit_code,

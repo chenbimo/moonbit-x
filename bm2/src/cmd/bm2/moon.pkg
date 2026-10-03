@@ -9,6 +9,8 @@ import {
   "moonbitlang/core/json",
   "moonbitlang/x/fs",
   "moonbitlang/core/argparse",
+  "chensuiyi/dateku",
+  "chensuiyi/semver",
 }
 
 pkgtype(kind: "executable")

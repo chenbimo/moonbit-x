@@ -241,7 +241,7 @@ pub async fn Supervisor::wait_settled(
       None => ()
     }
   }
-  let deadline = now_ms() + (timeout + 2000).to_uint64()
+  let deadline = @dateku.now_ms() + (timeout + 2000).to_uint64()
   while true {
     self.tick()
     let mut ok = true
@@ -254,7 +254,7 @@ pub async fn Supervisor::wait_settled(
     if ok {
       return true
     }
-    if now_ms() > deadline {
+    if @dateku.now_ms() > deadline {
       return false
     }
     @async.sleep(50)
@@ -320,7 +320,7 @@ fn Supervisor::mark_online(
   inst.pid = pid
   inst.pidfd = pidfd
   inst.status = Online
-  inst.started_at_ms = now_ms()
+  inst.started_at_ms = @dateku.now_ms()
   inst.times += 1
   inst.exit_intent = Idle
   inst.kill_deadline_ms = 0UL
@@ -470,7 +470,7 @@ pub fn Supervisor::kill_app(self : Supervisor, app_name : String) -> Unit raise 
 /// promise to rescan every instance that often.
 pub async fn Supervisor::tick(self : Supervisor) -> Unit {
   self.reap()
-  let now = now_ms()
+  let now = @dateku.now_ms()
   if now - self.last_memory_check_ms >= self.memory_interval_ms.to_uint64() {
     self.last_memory_check_ms = now
     self.check_memory()
@@ -609,7 +609,7 @@ fn Supervisor::handle_exit(
   pid : Int,
   exit : @process.ChildExit?,
 ) -> Unit {
-  let now = now_ms()
+  let now = @dateku.now_ms()
   match exit {
     None => {
       inst.last_exit_code = None
@@ -1185,7 +1185,7 @@ fn Supervisor::mark_spawn_failed(self : Supervisor, inst : Instance) -> Unit {
     )
     self.mark_restarting(
       inst,
-      now_ms() + (app.restart_delay_ms * inst.restart_count).to_uint64(),
+      @dateku.now_ms() + (app.restart_delay_ms * inst.restart_count).to_uint64(),
     )
   }
 }
@@ -1201,7 +1201,7 @@ fn terminate(
 ) -> Unit {
   inst.mark_stopping(intent, reason)
   @process.discard(() => @process.kill_group(inst.pid, @process.SIGTERM))
-  inst.kill_deadline_ms = now_ms() + app.stop_timeout_ms.to_uint64()
+  inst.kill_deadline_ms = @dateku.now_ms() + app.stop_timeout_ms.to_uint64()
 }
 
 ///|

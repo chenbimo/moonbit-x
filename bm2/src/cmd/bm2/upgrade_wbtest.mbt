@@ -17,7 +17,13 @@ test "upgrade only fires when the published version is newer" {
     None => fail("expected a published version")
   }
   // 索引里最新的是 0.5.1,比当前 0.5.0 新:升级应触发。
-  assert_true(@core.version_compare(latest, VERSION) > 0)
-  assert_true(@core.version_compare("0.5.2", VERSION) > 0)
-  assert_true(@core.version_compare("0.4.9", VERSION) < 0)
+  assert_true(
+    @semver.compare(@semver.parse(latest), @semver.parse(VERSION)) > 0,
+  )
+  assert_true(
+    @semver.compare(@semver.parse("0.5.2"), @semver.parse(VERSION)) > 0,
+  )
+  assert_true(
+    @semver.compare(@semver.parse("0.4.9"), @semver.parse(VERSION)) < 0,
+  )
 }
