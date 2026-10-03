@@ -72,3 +72,37 @@ test "replace_version rewrites only the exact match once" {
   // The import pin is a different line and must survive untouched.
   assert_true(next.contains("\"y@0.1.0\""))
 }
+
+///|
+test "sync_pins rewrites pinned imports in place" {
+  let text =
+    #|name = "x"
+    #|
+    #|version = "0.1.0"
+    #|
+    #|import {
+    #|  "moonbitlang/x@0.5.1",
+    #|  "chensuiyi/fndash@0.1.0",
+    #|  "chensuiyi/semver@0.1.0",
+    #|}
+  let synced = sync_pins(text, [
+    ("chensuiyi/fndash", "0.2.0"),
+    ("chensuiyi/semver", "0.3.0"),
+  ])
+  assert_true(synced.contains("\"chensuiyi/fndash@0.2.0\""))
+  assert_true(synced.contains("\"chensuiyi/semver@0.3.0\""))
+  // Non-workspace imports and everything else stay untouched.
+  assert_true(synced.contains("\"moonbitlang/x@0.5.1\""))
+  assert_true(synced.contains("version = \"0.1.0\""))
+  assert_true(synced.contains("  \"chensuiyi/fndash@0.2.0\","))
+}
+
+///|
+test "sync_pins adds pins to imports lacking a version" {
+  let text = "import {\n  \"chensuiyi/fndash\",\n  \"other@1.0\",\n}\n"
+  let synced = sync_pins(text, [("chensuiyi/fndash", "0.9.0")])
+  // An import without an @ suffix gets pinned to the given version.
+  assert_true(synced.contains("\"chensuiyi/fndash@0.9.0\""))
+  // Foreign modules are untouched.
+  assert_true(synced.contains("\"other@1.0\""))
+}
