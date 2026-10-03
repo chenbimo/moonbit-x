@@ -11,6 +11,7 @@
 - 验证:bm2 在 WSL 中执行 `bash bm2/scripts/verify.sh`;各成员的验证方式见各自文档
 - 发包:WSL 中 `bash scripts/release.sh`(首次发包前在 WSL `moon login` 登录 mooncakes)
 - 平台:bm2 仅 Linux;新增成员若含平台相关 C 桩,必须在本文档标注
+- **产品文案**:面向全球开发者,CLI 帮助/输出/错误与通知文案统一英文,不做 i18n;README 用单文件内嵌双语(notify/release 模式);事件日志与状态文件保持语言中立键
 
 ## 测试粒度
 
