@@ -29,4 +29,5 @@ import {
   "chensuiyi/fsx@0.1.0",
   "chensuiyi/fndash@0.1.0",
   "chensuiyi/logfly@0.1.0",
+  "chensuiyi/dcipc@0.1.0",
 }

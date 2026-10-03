@@ -601,8 +601,8 @@ async fn request_with_recovery(
     }
     None => ()
   }
-  @fndash.discard(() => @fsx.unlink(state_dir + "/" + @ipc.PORT_FILE))
-  @fndash.discard(() => @fsx.unlink(state_dir + "/" + @ipc.TOKEN_FILE))
+  @fndash.discard(() => @fsx.unlink(state_dir + "/" + @dcipc.PORT_FILE))
+  @fndash.discard(() => @fsx.unlink(state_dir + "/" + @dcipc.TOKEN_FILE))
   @core.log_event(state_dir, "bm2.events.jsonl", "stale_socket_removed")
   let retry = match connect_or_start(state_dir) {
     Some(pair) => pair
@@ -659,11 +659,11 @@ async fn send_request(
 /// Open an authenticated channel to the running daemon. None when there is
 /// nothing to talk to: no port file, no listener, or no token file.
 async fn connect_daemon(state_dir : String) -> (@socket.Tcp, String)? {
-  let token = match @ipc.read_token(state_dir) {
+  let token = match @dcipc.read_token(state_dir) {
     Some(token) => token
     None => return None
   }
-  let conn = try @ipc.dial(state_dir) catch {
+  let conn = try @dcipc.dial(state_dir) catch {
     _ => None
   } noraise {
     opened => Some(opened)

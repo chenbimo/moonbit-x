@@ -4,6 +4,7 @@ import {
   "chensuiyi/bm2/config",
   "chensuiyi/bm2/core",
   "chensuiyi/bm2/ipc",
+  "chensuiyi/dcipc",
   "moonbitlang/core/env",
   "moonbitlang/core/json",
   "moonbitlang/x/fs",

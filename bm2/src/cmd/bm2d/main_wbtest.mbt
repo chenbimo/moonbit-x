@@ -12,7 +12,7 @@ async fn round_trip(
     ignore(
       tg.spawn(async fn() {
         // Server side, sequential exactly like the daemon's accept loop.
-        let conn = @ipc.accept_authed(server, "wbtest")
+        let conn = @dcipc.accept_authed(server, "wbtest")
         match conn {
           Some(conn) =>
             match @ipc.read_request(conn) {

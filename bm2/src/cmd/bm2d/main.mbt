@@ -93,7 +93,7 @@ async fn run() -> Int {
     bound => bound
   }
   let port = server.addr.port()
-  let token = try @ipc.generate_token() catch {
+  let token = try @dcipc.generate_token() catch {
     _ => {
       @subproc.eprintln("bm2d: cannot generate the access token")
       server.close()
@@ -104,10 +104,10 @@ async fn run() -> Int {
   }
   let ok = try {
     @fsx.write_atomic(
-      state_dir + "/" + @ipc.PORT_FILE,
+      state_dir + "/" + @dcipc.PORT_FILE,
       @utf8.encode(port.to_string() + "\n"),
     )
-    @fsx.write_atomic(state_dir + "/" + @ipc.TOKEN_FILE, @utf8.encode(token))
+    @fsx.write_atomic(state_dir + "/" + @dcipc.TOKEN_FILE, @utf8.encode(token))
     true
   } catch {
     _ => false
@@ -143,8 +143,8 @@ async fn run() -> Int {
     Some(Exit::Detach) => {
       @core.log_event(state_dir, "bm2d.events.jsonl", "daemon_detaching")
       server.close()
-      @fndash.discard(() => @fsx.unlink(state_dir + "/" + @ipc.PORT_FILE))
-      @fndash.discard(() => @fsx.unlink(state_dir + "/" + @ipc.TOKEN_FILE))
+      @fndash.discard(() => @fsx.unlink(state_dir + "/" + @dcipc.PORT_FILE))
+      @fndash.discard(() => @fsx.unlink(state_dir + "/" + @dcipc.TOKEN_FILE))
       @fndash.discard(() => @fsx.unlink(state_dir + "/bm2d.pid"))
       @core.log_event(state_dir, "bm2d.events.jsonl", "daemon_detached")
     }
@@ -191,7 +191,7 @@ async fn accept_loop(
   token : String,
 ) -> Exit {
   while true {
-    let conn = try @ipc.accept_authed(server, token) catch {
+    let conn = try @dcipc.accept_authed(server, token) catch {
       _ => None
     } noraise {
       accepted => accepted
@@ -306,8 +306,8 @@ async fn shutdown(
   for name in names {
     @fndash.discard(() => @core.remove_project(state_dir, name))
   }
-  @fndash.discard(() => @fsx.unlink(state_dir + "/" + @ipc.PORT_FILE))
-  @fndash.discard(() => @fsx.unlink(state_dir + "/" + @ipc.TOKEN_FILE))
+  @fndash.discard(() => @fsx.unlink(state_dir + "/" + @dcipc.PORT_FILE))
+  @fndash.discard(() => @fsx.unlink(state_dir + "/" + @dcipc.TOKEN_FILE))
   @fndash.discard(() => @fsx.unlink(state_dir + "/bm2d.pid"))
 }
 

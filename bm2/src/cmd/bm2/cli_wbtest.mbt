@@ -57,10 +57,10 @@ async test "a busy daemon is reported instead of being replaced" {
   // ever comes.
   let server = @socket.TcpServer::TcpServer(@socket.Addr::new(2130706433U, 0))
   @fs.write_string_to_file(
-    state_dir + "/" + @ipc.PORT_FILE,
+    state_dir + "/" + @dcipc.PORT_FILE,
     server.addr.port().to_string() + "\n",
   )
-  @fs.write_string_to_file(state_dir + "/" + @ipc.TOKEN_FILE, "wbtest-token")
+  @fs.write_string_to_file(state_dir + "/" + @dcipc.TOKEN_FILE, "wbtest-token")
   let req : @core.Request = {
     protocol: Some(@core.PROTOCOL_VERSION),
     command: "list",
@@ -81,8 +81,8 @@ async test "a busy daemon is reported instead of being replaced" {
   assert_true(outcome.contains("did not answer"))
   assert_true(outcome.contains("try again"))
   server.close()
-  @fsx.unlink(state_dir + "/" + @ipc.PORT_FILE)
-  @fsx.unlink(state_dir + "/" + @ipc.TOKEN_FILE)
+  @fsx.unlink(state_dir + "/" + @dcipc.PORT_FILE)
+  @fsx.unlink(state_dir + "/" + @dcipc.TOKEN_FILE)
   @fsx.unlink(state_dir + "/bm2.events.jsonl")
   @fs.remove_dir(state_dir)
 }
