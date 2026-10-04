@@ -10,6 +10,7 @@ pub fn instance_env_blob(
   app_name : String,
   instance_id : Int,
   port : Int,
+  extra? : Array[(String, String)] = [],
 ) -> Bytes {
   let reserved = [
     ("BM2_APP_NAME", app_name),
@@ -18,7 +19,7 @@ pub fn instance_env_blob(
     ("BM2_APP_PORT", port.to_string()),
     ("NODE_ENV", "production"),
   ]
-  build_blob(reserved)
+  build_blob(reserved, extra~)
 }
 
 ///|
@@ -49,9 +50,16 @@ fn select_entries(vars : Map[String, String]) -> Array[(String, String)] {
 }
 
 ///|
-fn build_blob(reserved : Array[(String, String)]) -> Bytes {
+fn build_blob(
+  reserved : Array[(String, String)],
+  extra? : Array[(String, String)] = [],
+) -> Bytes {
   let buf = StringBuilder()
   for entry in select_entries(@env.get_env_vars()) {
+    let (name, value) = entry
+    write_entry(buf, name, value)
+  }
+  for entry in extra {
     let (name, value) = entry
     write_entry(buf, name, value)
   }
