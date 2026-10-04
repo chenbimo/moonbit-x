@@ -1,7 +1,37 @@
 ///|
+/// The `[env]` table: application environment injected into every instance.
+/// Values must be strings; keys follow environment-variable naming. bun and
+/// node never let a .env file override an existing variable, so these values
+/// beat whatever a project ships in its own env files.
+fn opt_env(
+  table : Map[String, @toml.TomlValue],
+) -> Array[(String, String)] raise ConfigError {
+  match table.get("env") {
+    None => []
+    Some(@toml.TomlTable(section)) => {
+      let entries : Array[(String, String)] = []
+      for pair in section.iter() {
+        let (key, value) = pair
+        guard value is @toml.TomlString(text) else {
+          raise ConfigError::InvalidField("env.\{key} must be a string")
+        }
+        guard valid_env_name(key) else {
+          raise ConfigError::InvalidField(
+            "env.\{key} has an invalid variable name",
+          )
+        }
+        entries.push((key, text))
+      }
+      entries
+    }
+    Some(_) => raise ConfigError::InvalidField("env must be a table")
+  }
+}
+
+///|
 let rootKeys : Array[String] = [
   "name", "cwd", "script", "runtime", "exec_mode", "instances", "port", "max_memory_mb",
-  "max_restarts", "restart_delay_ms", "min_uptime_ms", "stop_timeout_ms", "notify",
+  "max_restarts", "restart_delay_ms", "min_uptime_ms", "stop_timeout_ms", "notify", "env",
 ]
 
 ///|
@@ -64,6 +94,7 @@ pub fn parse(doc : String, base_dir : String) -> Config raise ConfigError {
       DEFAULT_STOP_TIMEOUT_MS,
     ),
     notify: opt_notify(table),
+    env: opt_env(table),
   }
   validate(config)
   config

@@ -65,20 +65,49 @@ test "rejects unknown top-level field" {
 }
 
 ///|
-test "rejects the removed env table" {
-  let message = parse_error(
-    (
-      #|name = "blog"
-      #|script = "index.ts"
-      #|instances = 1
-      #|port = 3000
-      #|
-      #|[env]
-      #|APP_ENV = "production"
-      #|
-    ),
+/// The [env] table injects application environment; values must be strings
+/// and keys must look like environment variables.
+test "parses the env table and enforces its shape" {
+  let config = @config.parse(
+    VALID_DOC + "\n[env]\nAPP_ENV = \"production\"\nMYSQL_HOST = \"127.0.0.1\"\n\n",
+    BASE_DIR,
   )
-  assert_true(message.contains("unknown field env"))
+  assert_eq(config.env.length(), 2)
+  assert_eq(config.env[0], ("APP_ENV", "production"))
+  assert_eq(config.env[1], ("MYSQL_HOST", "127.0.0.1"))
+  // A non-string value is rejected.
+  assert_true(
+    parse_error(
+      (
+        #|name = "blog"
+        #|script = "index.ts"
+        #|instances = 1
+        #|port = 3000
+        #|
+        #|[env]
+        #|REPLICAS = 3
+        #|
+      ),
+    ).contains("env.REPLICAS must be a string"),
+  )
+  // A malformed variable name is rejected.
+  assert_true(
+    parse_error(
+      (
+        #|name = "blog"
+        #|script = "index.ts"
+        #|instances = 1
+        #|port = 3000
+        #|
+        #|[env]
+        #|"A-B" = "x"
+        #|
+      ),
+    ).contains("has an invalid variable name"),
+  )
+  // Defaults to empty when absent.
+  let plain = @config.parse(VALID_DOC, BASE_DIR)
+  assert_eq(plain.env.length(), 0)
 }
 
 ///|

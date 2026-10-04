@@ -1188,6 +1188,7 @@ fn Supervisor::spawn_instance(
         app.name,
         inst.instance_id,
         inst.port,
+        extra=app.env,
       ),
     })
   catch {

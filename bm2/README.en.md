@@ -143,7 +143,17 @@ Upgrading from 0.3.0: `exec_mode` is new in 0.4.0 and defaults to cluster. Multi
 
 ## Environment
 
-bm2 passes only `PATH`, `HOME`, and `TMPDIR` from its own environment to managed processes, plus these reserved variables:
+The `[env]` table in `bm2.toml` injects custom environment variables into the application (values must be strings), placed after the root table:
+
+```toml
+[env]
+MYSQL_HOST = "127.0.0.1"
+MYSQL_PORT = "3306"
+```
+
+Injection order: whitelisted environment, then `[env]`, then the reserved set last (which cannot be overridden). bun/node never let a `.env` file override an existing variable, so `[env]` values beat whatever env files the project ships.
+
+Otherwise bm2 passes only `PATH`, `HOME`, and `TMPDIR` from its own environment to managed processes, plus these reserved variables:
 
 - `BM2_APP_NAME` (the project name)
 - `BM2_INSTANCE_ID` (the instance number, `"0"` for the first instance)

@@ -15,6 +15,7 @@ fn wb_setup(root : String, port : Int) -> Supervisor raise {
     min_uptime_ms: 60000,
     stop_timeout_ms: 200,
     notify: @config.NotifyConfig::disabled(),
+    env: [],
   }
   let sv = Supervisor::new(state_dir=root + "/state", bun_path="/bin/sh")
   sv.register(config, root + "/bm2.toml")

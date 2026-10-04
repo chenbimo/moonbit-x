@@ -20,6 +20,7 @@ fn wb_config(name : String, cwd : String, port : Int) -> @config.Config {
     min_uptime_ms: 60000,
     stop_timeout_ms: 500,
     notify: @config.NotifyConfig::disabled(),
+    env: [],
   }
 }
 

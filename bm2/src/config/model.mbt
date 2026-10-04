@@ -19,6 +19,11 @@ pub(all) struct Config {
   /// where they go. Written as `[notify]` plus `[[notify.target]]` in bm2.toml,
   /// so a project's supervision and its reporting stay in one file.
   notify : NotifyConfig
+  /// Application environment from the `[env]` table, injected into every
+  /// instance after the whitelist and before the reserved vars, so it beats
+  /// .env files (bun never overrides an existing variable) but never the
+  /// reserved BM2_*/NODE_ENV set.
+  env : Array[(String, String)]
 } derive(Debug)
 
 ///|
