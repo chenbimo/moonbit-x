@@ -326,7 +326,7 @@ bm2 can report what it is doing: crashes and automatic restarts, an exhausted cr
 
 Notification policy belongs to a **project** and lives in the same `bm2.toml`, as a `[notify]` table with `[[notify.target]]` entries; changes take effect on the next `bm2 start`. A project reports only its own events, to the targets it configured itself.
 
-`curl` is required: bm2 uses it for https and smtp requests instead of implementing network protocols itself.
+Delivery is built in (`moonbitlang/async` + `chensuiyi/notify`, HTTPS and SMTP included); no external commands such as `curl` are needed.
 
 ```bash
 bm2 notify            # run inside the project: test every target it configures
@@ -360,7 +360,7 @@ Every destination is one `[[notify.target]]`:
 | `preset` | Platform preset (see below) |
 | `url` | Endpoint: `http(s)://` for web platforms, `smtp(s)://` for email |
 | `secret` | Token, routing key or signing secret, where the platform wants one |
-| `username` | Email user name, Telegram chat id, or Pushover user key |
+| `username` | Email only: SMTP user name |
 | `password` | Email only |
 | `from` / `to` | Email only; `to` is an array, so several recipients are allowed |
 | `format` | `text` / `markdown` / `card`; presets fall back to what they support |
@@ -369,7 +369,7 @@ Every destination is one `[[notify.target]]`:
 | `report` | Whether this target receives the periodic report (default yes) |
 | `label` | Optional environment label used in messages |
 
-Credentials never reach the event log, the state files, crash logs or CLI output; validation errors name the field and the target index only. Requests are written to a mode-0600 file that curl reads and bm2 deletes, so `ps` shows neither the URL nor the secret.
+Credentials live only in `bm2.toml` and daemon memory — never in the event log, state files, crash logs, CLI output or `ps`; validation errors name the field and the target index only.
 
 ### Presets
 
@@ -398,7 +398,7 @@ Platforms without a preset go through `webhook`: it posts one stable JSON body (
 | `threshold` | Memory pressure, an instance stuck away from online, restart storms |
 | `report` | The periodic health report |
 
-A report covers the fields selected by `report_fields`: instance status, RSS, CPU percent (needs two samples, so the first report after a daemon restart omits it), consecutive abnormal restarts, uptime and ports.
+A report covers the fields selected by `report_fields`: instance status, RSS, CPU percent (needs two samples, so the first report after a daemon restart omits it), consecutive abnormal restarts, uptime and ports. `report_interval_min` goes down to 1 — one health report per minute; thresholds and reports share the same once-a-minute evaluation tick.
 
 ### Delivery behaviour
 
