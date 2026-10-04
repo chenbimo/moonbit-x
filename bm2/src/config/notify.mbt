@@ -77,6 +77,29 @@ pub fn parse_notify_section(
 }
 
 ///|
+/// Required string with ${VAR} expansion (credential fields only).
+fn req_expanded(
+  table : Map[String, @toml.TomlValue],
+  key : String,
+  ctx : String,
+) -> String raise ConfigError {
+  expand_env(req_string(table, key, ctx), ctx)
+}
+
+///|
+/// Optional string with ${VAR} expansion (credential fields only).
+fn opt_expanded(
+  table : Map[String, @toml.TomlValue],
+  key : String,
+  ctx : String,
+) -> String? raise ConfigError {
+  match opt_string_opt(table, key, ctx) {
+    Some(value) => Some(expand_env(value, ctx))
+    None => None
+  }
+}
+
+///|
 fn parse_targets(
   table : Map[String, @toml.TomlValue],
 ) -> Array[NotifyTarget] raise ConfigError {
@@ -93,17 +116,17 @@ fn parse_targets(
         targets.push({
           name: req_string(fields, "name", ctx),
           preset: req_string(fields, "preset", ctx),
-          url: req_string(fields, "url", ctx),
-          secret: opt_string_opt(fields, "secret", ctx),
+          url: req_expanded(fields, "url", ctx),
+          secret: opt_expanded(fields, "secret", ctx),
           format: opt_string_opt(fields, "format", ctx),
           events: opt_string_array_opt(fields, "events", ctx),
           min_level: opt_string_opt(fields, "min_level", ctx),
           report: opt_bool_opt(fields, "report", ctx),
           label: opt_string_opt(fields, "label", ctx),
-          from: opt_string_opt(fields, "from", ctx),
+          from: opt_expanded(fields, "from", ctx),
           to: opt_string_array_opt(fields, "to", ctx),
-          username: opt_string_opt(fields, "username", ctx),
-          password: opt_string_opt(fields, "password", ctx),
+          username: opt_expanded(fields, "username", ctx),
+          password: opt_expanded(fields, "password", ctx),
         })
       }
       targets

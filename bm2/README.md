@@ -373,6 +373,22 @@ bm2 notify <name>     # 只发给指定目标
 | `threshold_disk_mb` | `~/.bm2` 所在文件系统剩余空间低于该 MB 数时告警（0~1048576，默认 0 即关闭） | `1024` |
 | `threshold_storm` | 10 分钟窗口内重启（含 spawn 失败重试）达到该次数时告警（0~1000，默认 0 即关闭） | `20` |
 
+### 凭据字段支持环境变量
+
+`url`、`secret`、`username`、`password`、`from` 五个字段支持 `${VAR}` 形式的环境变量引用，因此 bm2.toml 可以只带占位符提交到仓库，真实端点与密钥留在环境里：
+
+```toml
+[[notify.target]]
+name = "feishu-test"
+preset = "feishu"
+url = "${BM2_TEST_WEBHOOK_URL}"
+secret = "${BM2_TEST_SIGN_KEY}"
+```
+
+- 变量未设置时解析直接报错并指名变量名，绝不会静默替换成空值。
+- 环境以「解析配置的进程」为准：`bm2 start` / `bm2 notify` 用 shell 当前环境，托管期上报用守护进程的环境——守护进程环境在其启动时定格，改动环境变量后先 `bm2 reload` 换入新守护进程再 `bm2 start`。
+- 其余字段（script、port 等）不做环境变量展开，只有通知凭据需要它。
+
 每个目标写在 `[[notify.target]]` 里：
 
 | 字段 | 含义 |

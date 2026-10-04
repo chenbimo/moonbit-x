@@ -333,6 +333,22 @@ bm2 notify            # run inside the project: test every target it configures
 bm2 notify <name>     # test one target
 ```
 
+### Environment variables for credentials
+
+The `url`, `secret`, `username`, `password` and `from` fields accept `${VAR}` environment references, so a bm2.toml can be committed with placeholders while the real endpoint and secret stay in the environment:
+
+```toml
+[[notify.target]]
+name = "feishu-test"
+preset = "feishu"
+url = "${BM2_TEST_WEBHOOK_URL}"
+secret = "${BM2_TEST_SIGN_KEY}"
+```
+
+- An unset variable is a hard parse error naming the variable — never a silent empty value.
+- The environment is that of the process parsing the config: `bm2 start` / `bm2 notify` use the current shell, supervised reporting uses the daemon's. A daemon's environment is frozen at its start, so after changing a variable run `bm2 reload` to swap in a fresh daemon, then `bm2 start`.
+- No other field (script, port, ...) goes through expansion; only notification credentials need it.
+
 ### Policy fields
 
 Everything under `[notify]` is optional; without the table the project reports nothing:

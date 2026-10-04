@@ -1,8 +1,5 @@
 import {
   "moonbit-community/toml",
   "moonbitlang/x/fs",
-}
-
-import {
   "moonbitlang/core/env",
-} for "test"
+}
