@@ -22,20 +22,38 @@ pub fn instance_env_blob(
 }
 
 ///|
-/// Whitelisted environment only; used to launch helper processes.
+/// Whitelisted environment only; used to launch helper processes. BM2_*
+/// passes through so notification credentials exported in the caller's
+/// shell reach the daemon's ${VAR} expansion.
 pub fn base_env_blob() -> Bytes {
   build_blob([])
 }
 
 ///|
-fn build_blob(reserved : Array[(String, String)]) -> Bytes {
-  let buf = StringBuilder()
-  let vars = @env.get_env_vars()
+/// Whitelisted vars plus every BM2_* var from the given environment.
+fn select_entries(vars : Map[String, String]) -> Array[(String, String)] {
+  let selected : Array[(String, String)] = []
   for name in whitelist {
     match vars.get(name) {
-      Some(value) => write_entry(buf, name, value)
+      Some(value) => selected.push((name, value))
       None => ()
     }
+  }
+  for pair in vars.iter() {
+    let (name, value) = pair
+    if name.has_prefix("BM2_") {
+      selected.push((name, value))
+    }
+  }
+  selected
+}
+
+///|
+fn build_blob(reserved : Array[(String, String)]) -> Bytes {
+  let buf = StringBuilder()
+  for entry in select_entries(@env.get_env_vars()) {
+    let (name, value) = entry
+    write_entry(buf, name, value)
   }
   for entry in reserved {
     let (name, value) = entry
