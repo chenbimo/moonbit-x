@@ -46,6 +46,10 @@ moon.work 多模块发布编排工具。
 
 </details>
 
+## Author
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo)) · [mooncakes: chensuiyi](https://mooncakes.io/user/chensuiyi)
+
 ## License
 
 MIT

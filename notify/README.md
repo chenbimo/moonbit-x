@@ -20,6 +20,20 @@ moon add chensuiyi/notify
 | `webhook` | Generic webhook | HTTPS (Bearer) |
 | `email` | Email | SMTP (STARTTLS / smtps) |
 
+## Features
+
+- Seven platform presets behind one `deliver` call — switch by config, not code
+- Optional engine: dedupe → rate-limit → queue → retry with backoff
+- Credential-free failures: reasons never contain url / secret / password
+- Caller-injected time: the library never reads a clock, fully testable
+- No logging, no disk: delivers and returns structured results
+
+## Scenarios
+
+- Daemon lifecycle alerts: crash / memory-limit / threshold notices to chat groups
+- `bm2 notify`: prove a project's endpoints and credentials work without waiting for a real incident
+- Periodic health reports: per-instance status lines with rss / cpu / uptime
+
 ## Usage
 
 ```moonbit
@@ -118,6 +132,10 @@ let report = engine.pump(now) // 每 tick 调用一次
 - `chensuiyi/dateku@0.1.0` + `chensuiyi/fndash@0.1.0`
 
 </details>
+
+## Author
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo)) · [mooncakes: chensuiyi](https://mooncakes.io/user/chensuiyi)
 
 ## License
 
