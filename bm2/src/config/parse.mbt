@@ -31,7 +31,8 @@ fn opt_env(
 ///|
 let rootKeys : Array[String] = [
   "name", "cwd", "script", "runtime", "exec_mode", "instances", "port", "max_memory_mb",
-  "max_restarts", "restart_delay_ms", "min_uptime_ms", "stop_timeout_ms", "notify", "env",
+  "max_restarts", "restart_delay_ms", "min_uptime_ms", "stop_timeout_ms", "notify",
+  "env",
 ]
 
 ///|

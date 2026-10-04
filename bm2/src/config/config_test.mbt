@@ -69,7 +69,8 @@ test "rejects unknown top-level field" {
 /// and keys must look like environment variables.
 test "parses the env table and enforces its shape" {
   let config = @config.parse(
-    VALID_DOC + "\n[env]\nAPP_ENV = \"production\"\nMYSQL_HOST = \"127.0.0.1\"\n\n",
+    VALID_DOC +
+    "\n[env]\nAPP_ENV = \"production\"\nMYSQL_HOST = \"127.0.0.1\"\n\n",
     BASE_DIR,
   )
   assert_eq(config.env.length(), 2)
