@@ -351,7 +351,10 @@ Everything under `[notify]` is optional; without the table the project reports n
 | `include_log_lines` | Crash-log lines to attach (0~50); logs may hold secrets, so 0 by default | `0` |
 | `threshold_rss_percent` | Alert when RSS reaches this share of the limit (0~100, default 0 = off) | `80` |
 | `threshold_offline_min` | Alert when an instance stays away from online this long (0~1440, default 0 = off) | `5` |
-| `threshold_restarts` | Alert at this many consecutive abnormal restarts (0~1000, default 0 = off) | `5` |
+| `threshold_restarts` | Consecutive abnormal restarts before an alert (0-1000, 0 disables) | `5` |
+| `start_timeout_ms` | Alert when the port has no listener this long after spawn (0-600000, 0 disables) | `30000` |
+| `threshold_disk_mb` | Alert when the filesystem holding `~/.bm2` has less free space (0-1048576, 0 disables) | `1024` |
+| `threshold_storm` | Restarts (including spawn-failure retries) within a 10-minute window before an alert (0-1000, 0 disables) | `20` |
 
 Every destination is one `[[notify.target]]`:
 
@@ -396,8 +399,13 @@ Platforms without a preset go through `webhook`: it posts one stable JSON body (
 | `reuseport_missing` | Cluster project without `reusePort`; the project is stopped |
 | `lifecycle` | Project start / stop / kill, and clean-exit restarts |
 | `daemon` | The daemon started, or a reload finished adopting this project |
-| `threshold` | Memory pressure, an instance stuck away from online, restart storms |
+| `threshold` | Memory pressure, an instance stuck away from online, restart storms (10-minute window, `threshold_storm`) |
+| `oom_kill` | SIGKILL with the last sampled RSS at 90%+ of the limit — attributed to the kernel OOM killer; other SIGKILLs stay `crash` |
+| `disk_pressure` | Free space on the state filesystem below `threshold_disk_mb` |
+| `start_timeout` | No listener on the port within `start_timeout_ms` of spawn; the app may be stuck before bind |
 | `report` | The periodic health report |
+
+Crash notices name their cause: a cluster crash while the port is held exclusively by another process says so, and a SIGKILL with memory near its limit is reported separately as `oom_kill`. Every rejected control-channel handshake (wrong token or port probe) lands in `bm2d.events.jsonl` as `auth_failed`.
 
 A report covers the fields selected by `report_fields`: instance status, RSS, CPU percent (needs two samples, so the first report after a daemon restart omits it), consecutive abnormal restarts, uptime and ports, plus the windowed `peak` (the instance's highest RSS since the previous report — sampled by the memory check, cleared when a report goes out), `disk` (free space on the filesystem holding `~/.bm2`) and system `load` (1-minute load average, one entry per report). `report_interval_min` goes down to 1 — one health report per minute; thresholds and reports share the same once-a-minute evaluation tick.
 

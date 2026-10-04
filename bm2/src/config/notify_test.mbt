@@ -240,3 +240,59 @@ test "daily_report_hour parses, defaults to off and validates its range" {
     ),
   )
 }
+
+///|
+test "new threshold fields parse, default off and validate their ranges" {
+  let config = @config.parse(
+    project_doc(
+      (
+        #|[notify]
+        #|enabled = true
+        #|start_timeout_ms = 30000
+        #|threshold_disk_mb = 1024
+        #|threshold_storm = 10
+        #|events = ["crash", "oom_kill", "disk_pressure", "start_timeout"]
+      ),
+    ),
+    "/srv/yicode",
+  )
+  assert_eq(config.notify.start_timeout_ms, 30000)
+  assert_eq(config.notify.threshold_disk_mb, 1024)
+  assert_eq(config.notify.threshold_storm, 10)
+  assert_eq(config.notify.events.length(), 4)
+  // Absent means disabled.
+  let plain = @config.parse(
+    project_doc(
+      (
+        #|[notify]
+        #|enabled = true
+      ),
+    ),
+    "/srv/yicode",
+  )
+  assert_eq(plain.notify.start_timeout_ms, 0)
+  assert_eq(plain.notify.threshold_disk_mb, 0)
+  assert_eq(plain.notify.threshold_storm, 0)
+  // Ranges are enforced.
+  assert_true(
+    notify_error("[notify]\nstart_timeout_ms = 600001\n").contains(
+      "start_timeout_ms must be between",
+    ),
+  )
+  assert_true(
+    notify_error("[notify]\nthreshold_disk_mb = 1048577\n").contains(
+      "threshold_disk_mb must be between",
+    ),
+  )
+  assert_true(
+    notify_error("[notify]\nthreshold_storm = 1001\n").contains(
+      "threshold_storm must be between",
+    ),
+  )
+  // The new events are known values; a typo stays rejected.
+  assert_true(
+    notify_error("[notify]\nevents = [\"oom_killed\"]\n").contains(
+      "unknown value oom_killed",
+    ),
+  )
+}

@@ -7,7 +7,8 @@
 let notifyKeys : Array[String] = [
   "enabled", "timeout_ms", "dedupe_window_s", "max_per_minute", "queue_size", "events",
   "report_interval_min", "report_fields", "daily_report_hour", "include_log_lines",
-  "threshold_rss_percent", "threshold_offline_min", "threshold_restarts", "target",
+  "threshold_rss_percent", "threshold_offline_min", "threshold_restarts",
+  "start_timeout_ms", "threshold_disk_mb", "threshold_storm", "target",
 ]
 
 ///|
@@ -26,7 +27,7 @@ let presets : Array[String] = [
 ///|
 let notifyEvents : Array[String] = [
   "crash", "errored", "memory_limit", "reuseport_missing", "lifecycle", "daemon",
-  "threshold", "report",
+  "threshold", "report", "oom_kill", "disk_pressure", "start_timeout",
 ]
 
 ///|
@@ -66,6 +67,9 @@ pub fn parse_notify_section(
     threshold_rss_percent: opt_int(table, "threshold_rss_percent", "notify", 0),
     threshold_offline_min: opt_int(table, "threshold_offline_min", "notify", 0),
     threshold_restarts: opt_int(table, "threshold_restarts", "notify", 0),
+    start_timeout_ms: opt_int(table, "start_timeout_ms", "notify", 0),
+    threshold_disk_mb: opt_int(table, "threshold_disk_mb", "notify", 0),
+    threshold_storm: opt_int(table, "threshold_storm", "notify", 0),
     targets: parse_targets(table),
   }
   validate_notify(config)

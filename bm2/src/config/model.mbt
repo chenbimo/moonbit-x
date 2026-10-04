@@ -68,6 +68,9 @@ pub(all) struct NotifyConfig {
   threshold_rss_percent : Int
   threshold_offline_min : Int
   threshold_restarts : Int
+  start_timeout_ms : Int
+  threshold_disk_mb : Int
+  threshold_storm : Int
   targets : Array[NotifyTarget]
 } derive(Debug)
 
@@ -92,6 +95,9 @@ pub fn NotifyConfig::disabled() -> NotifyConfig {
     threshold_rss_percent: 0,
     threshold_offline_min: 0,
     threshold_restarts: 0,
+    start_timeout_ms: 0,
+    threshold_disk_mb: 0,
+    threshold_storm: 0,
     targets: [],
   }
 }

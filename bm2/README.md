@@ -369,6 +369,9 @@ bm2 notify <name>     # 只发给指定目标
 | `threshold_rss_percent` | RSS 达到内存上限的百分比时告警（0~100，默认 0 即关闭） | `80` |
 | `threshold_offline_min` | 实例离开 online 超过该分钟数告警（0~1440，默认 0 即关闭） | `5` |
 | `threshold_restarts` | 连续异常重启达到该次数时告警（0~1000，默认 0 即关闭） | `5` |
+| `start_timeout_ms` | spawn 后超过该毫秒数端口仍未监听则告警（0~600000，默认 0 即关闭） | `30000` |
+| `threshold_disk_mb` | `~/.bm2` 所在文件系统剩余空间低于该 MB 数时告警（0~1048576，默认 0 即关闭） | `1024` |
+| `threshold_storm` | 10 分钟窗口内重启（含 spawn 失败重试）达到该次数时告警（0~1000，默认 0 即关闭） | `20` |
 
 每个目标写在 `[[notify.target]]` 里：
 
@@ -413,8 +416,13 @@ bm2 notify <name>     # 只发给指定目标
 | `reuseport_missing` | cluster 项目未开启 reusePort，整个项目被停止 |
 | `lifecycle` | 项目启动 / 停止 / 注销，以及干净退出后的自动重新拉起 |
 | `daemon` | 守护进程启动或 reload 换入后，本项目已被接管 |
-| `threshold` | 内存接近上限、实例长时间未恢复、重启过频 |
+| `threshold` | 内存接近上限、实例长时间未恢复、重启过频、重启风暴（10 分钟窗口，`threshold_storm`） |
+| `oom_kill` | SIGKILL 且最后采样 RSS 达上限 90% 以上，判定为内核 OOM killer；其余 SIGKILL 仍归 `crash` |
+| `disk_pressure` | 状态目录所在文件系统剩余空间低于 `threshold_disk_mb` |
+| `start_timeout` | spawn 后 `start_timeout_ms` 内端口始终无人监听，应用可能卡在 bind 之前 |
 | `report` | 定期体检 |
+
+崩溃类通知会指认原因：cluster 项目崩溃时若检测到端口被其他进程独占，正文会注明端口冲突；SIGKILL 且内存逼近上限会以 `oom_kill` 单独上报。控制通道的每次握手失败（错误令牌或端口探测）都会写入 `bm2d.events.jsonl` 的 `auth_failed` 事件。
 
 体检内容取决于 `report_fields`：实例状态、RSS、CPU 百分比（需要两次采样，守护进程重启后的首次不显示）、连续异常次数、运行时长、端口，以及窗口峰值 `peak`（自上一份报告以来该实例 RSS 的最高水位，采样随内存检查每轮进行，报告后清零）、磁盘 `disk`（`~/.bm2` 所在文件系统的剩余空间）与系统负载 `load`（1 分钟 load average，守护进程级，每份一条）。`report_interval_min` 最小为 1，即每分钟一次体检；阈值与体检共用每分钟一次的评估节拍。
 

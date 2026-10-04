@@ -72,3 +72,33 @@ async test "wait_settled gives up after the deadline" {
   inst.restart_at_ms = @dateku.now_ms() + 60000UL
   assert_false(sv.wait_settled(["wbapp"]))
 }
+
+///|
+/// OOM attribution: SIGKILL with the last sample near the limit; anything
+/// else (other signals, low-RSS kills, missing samples) stays a plain crash.
+test "oom kill attribution needs signal 9 and a near-limit sample" {
+  // 100 MB limit = 102400 kB; the 90% boundary is 92160 kB.
+  // Signal 9 at 95% of the limit.
+  assert_eq(is_oom_kill(Some(9), 97280, 100), true)
+  // Exactly at the 90% boundary counts.
+  assert_eq(is_oom_kill(Some(9), 92160, 100), true)
+  // Below the boundary is a plain crash.
+  assert_eq(is_oom_kill(Some(9), 90000, 100), false)
+  // Other signals and unknown exits never attribute to the OOM killer.
+  assert_eq(is_oom_kill(Some(15), 99000, 100), false)
+  assert_eq(is_oom_kill(None, 99000, 100), false)
+  // An instance never sampled has last_rss_kb 0.
+  assert_eq(is_oom_kill(Some(9), 0, 100), false)
+}
+
+///|
+/// Storm counting only looks inside the window and prunes what fell out.
+test "storm window counts recent restarts and prunes old ones" {
+  let hits : Array[UInt64] = [1000UL, 2000UL, 9000UL]
+  // Window 5s at t=10000: only t=9000 is inside; the rest is pruned.
+  assert_eq(storm_hit_count(hits, 10000UL, 5000UL), 1)
+  assert_eq(hits.length(), 1)
+  // A later pass over the pruned array keeps the count stable while the
+  // entry is still inside the window.
+  assert_eq(storm_hit_count(hits, 12000UL, 5000UL), 1)
+}

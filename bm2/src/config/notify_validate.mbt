@@ -114,6 +114,14 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
     1000,
     "notify.threshold_restarts",
   )
+  check_int_range(config.start_timeout_ms, 0, 600000, "notify.start_timeout_ms")
+  check_int_range(
+    config.threshold_disk_mb,
+    0,
+    1048576,
+    "notify.threshold_disk_mb",
+  )
+  check_int_range(config.threshold_storm, 0, 1000, "notify.threshold_storm")
   check_members(config.events, notifyEvents, "notify.events")
   check_members(
     config.report_fields,

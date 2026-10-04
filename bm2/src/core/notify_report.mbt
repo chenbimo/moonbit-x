@@ -11,6 +11,10 @@
 const NOTIFY_CHECK_INTERVAL_MS : UInt64 = 60000UL
 
 ///|
+/// How far back restart-storm detection looks.
+const STORM_WINDOW_MS : UInt64 = 600000UL
+
+///|
 /// The `[notify]` policy of one project. A project that never configured
 /// notifications gets the disabled policy, so callers stay unconditional.
 fn Supervisor::project_policy(
@@ -322,6 +326,35 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
               " reached.",
             )
           }
+          if policy.start_timeout_ms > 0 && inst.status is Online {
+            let probe_key = app_name + "/" + inst.instance_id.to_string()
+            let probed = match self.start_probe_done.get(probe_key) {
+              Some(generation) => generation
+              None => 0UL
+            }
+            if probed != inst.started_at_ms &&
+              now >= inst.started_at_ms + policy.start_timeout_ms.to_uint64() {
+              let rc = @subproc.probe_reuseport(inst.port)
+              if rc == 0 {
+                self.start_probe_done[probe_key] = inst.started_at_ms
+                self.notify_instance(
+                  inst,
+                  "start_timeout",
+                  "warn",
+                  "Port never started listening",
+                  "No listener on port " +
+                  inst.port.to_string() +
+                  " within " +
+                  policy.start_timeout_ms.to_string() +
+                  "ms of spawn; the app may be stuck before bind().",
+                )
+              } else if rc > 0 {
+                // Listening (shared or exclusive) — settled for this spawn.
+                self.start_probe_done[probe_key] = inst.started_at_ms
+              }
+              // rc < 0: probe itself failed; retry on the next pass.
+            }
+          }
           if inst.status is Online || inst.status is Stopped {
             self.notify.forget_offline(key)
           } else if policy.threshold_offline_min > 0 {
@@ -343,6 +376,46 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
           }
         }
       None => ()
+    }
+    if policy.enabled && policy.threshold_disk_mb > 0 {
+      match @subproc.disk_free_kb(self.state_dir) {
+        Some(kb) =>
+          if kb < (policy.threshold_disk_mb * 1024).to_int64() {
+            self.notify_project(
+              app_name,
+              "disk_pressure",
+              "warn",
+              "Disk space is running low",
+              "The filesystem holding ~/.bm2 has less than " +
+              policy.threshold_disk_mb.to_string() +
+              "MB left (" +
+              (kb / 1048576).to_string() +
+              "GB free); state files and logs may fail to write.",
+              "disk_pressure|" + app_name,
+            )
+          }
+        None => ()
+      }
+    }
+    if policy.enabled && policy.threshold_storm > 0 {
+      let hits = match self.storm_hits.get(app_name) {
+        Some(hits) => hits
+        None => []
+      }
+      let count = storm_hit_count(hits, now, STORM_WINDOW_MS)
+      if count >= policy.threshold_storm {
+        self.notify_project(
+          app_name,
+          "threshold",
+          "warn",
+          "Restart storm",
+          count.to_string() +
+          " restarts within 10 minutes, threshold " +
+          policy.threshold_storm.to_string() +
+          " reached.",
+          "storm|" + app_name,
+        )
+      }
     }
     if policy.enabled && policy.report_interval_min > 0 {
       let interval = (policy.report_interval_min * 60000).to_uint64()

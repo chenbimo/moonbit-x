@@ -63,6 +63,11 @@ pub struct Supervisor {
   last_report_ms : Map[String, UInt64]
   /// Per project: the epoch day its last daily report went out.
   last_daily_report_day : Map[String, UInt64]
+  /// Per project: restart timestamps inside the storm window.
+  storm_hits : Map[String, Array[UInt64]]
+  /// Instance key → the spawn generation (started_at_ms) already probed
+  /// for a missing listener, so each spawn is judged once.
+  start_probe_done : Map[String, UInt64]
 }
 
 ///|
@@ -93,6 +98,8 @@ pub fn Supervisor::new(
     last_notify_check_ms: 0UL,
     last_report_ms: Map([]),
     last_daily_report_day: Map([]),
+    storm_hits: Map([]),
+    start_probe_done: Map([]),
   }
 }
 
@@ -708,16 +715,16 @@ fn Supervisor::counted_exit(
   inst.restart_count += 1
   inst.last_reason = Some(reason)
   self.write_crash(inst, reason)
+  self.record_storm_hit(app.name, now)
   let detail = exit_detail(inst)
+  let cause = crash_cause_text(app, inst, reason, detail)
   if inst.restart_count > app.max_restarts {
     self.notify_instance(
       inst,
       "errored",
       "error",
       "Auto-recovery stopped",
-      "Cause: " +
-      reason +
-      detail +
+      cause +
       "; " +
       inst.restart_count.to_string() +
       " consecutive crashes, over the budget of " +
@@ -733,15 +740,38 @@ fn Supervisor::counted_exit(
       detail=reason,
     )
     self.mark_errored(inst, reason)
+  } else if reason != "memory_limit" &&
+    is_oom_kill(inst.last_signal, inst.last_rss_kb, app.max_memory_mb) {
+    self.notify_instance(
+      inst,
+      "oom_kill",
+      "warn",
+      "Killed by the kernel, restarting automatically",
+      cause +
+      "; the last RSS sample was at or above 90% of the " +
+      app.max_memory_mb.to_string() +
+      "MB limit, which points at the kernel OOM killer; " +
+      inst.restart_count.to_string() +
+      "/" +
+      app.max_restarts.to_string() +
+      " consecutive crashes; restarting with backoff.",
+    )
+    log_event(
+      self.state_dir,
+      "bm2d.events.jsonl",
+      "instance_restart_scheduled",
+      app=Some(inst.app_name),
+      instance=inst.instance_id,
+      detail=reason,
+    )
+    self.mark_restarting(inst, now + app.restart_delay_ms.to_uint64())
   } else {
     self.notify_instance(
       inst,
       "crash",
       "warn",
       "Abnormal exit, restarting automatically",
-      "Cause: " +
-      reason +
-      detail +
+      cause +
       "; " +
       inst.restart_count.to_string() +
       "/" +
@@ -758,6 +788,58 @@ fn Supervisor::counted_exit(
     )
     self.mark_restarting(inst, now + app.restart_delay_ms.to_uint64())
   }
+}
+
+///|
+/// The cause part of crash-family notices, with the one cause worth naming
+/// explicitly: a cluster port held exclusively by a foreign process.
+fn crash_cause_text(
+  app : @config.Config,
+  inst : Instance,
+  reason : String,
+  detail : String,
+) -> String {
+  let mut text = "Cause: " + reason + detail
+  if app.exec_mode == "cluster" && @subproc.probe_reuseport(inst.port) == 2 {
+    text = text + "; the port is held exclusively by another process"
+  }
+  text
+}
+
+///|
+/// SIGKILL with the last sampled RSS at 90%+ of the memory limit is, in
+/// practice, the kernel OOM killer: the supervisor only SIGKILLs through its
+/// own paths (which carry explicit reasons), and an app does not SIGKILL
+/// itself right after growing near its limit.
+pub fn is_oom_kill(sig : Int?, rss_kb : Int, max_memory_mb : Int) -> Bool {
+  sig == Some(9) && rss_kb * 10 >= max_memory_mb * 1024 * 9
+}
+
+///|
+/// Record a restart inside the storm window for a project.
+fn Supervisor::record_storm_hit(self : Supervisor, app_name : String, now : UInt64) -> Unit {
+  match self.storm_hits.get(app_name) {
+    Some(hits) => hits.push(now)
+    None => self.storm_hits[app_name] = [now]
+  }
+}
+
+///|
+/// Hits inside the storm window, pruning older entries in place.
+fn storm_hit_count(hits : Array[UInt64], now : UInt64, window_ms : UInt64) -> Int {
+  let fresh : Array[UInt64] = []
+  let mut count = 0
+  for ts in hits {
+    if now >= ts && now - ts <= window_ms {
+      fresh.push(ts)
+      count += 1
+    }
+  }
+  hits.clear()
+  for ts in fresh {
+    hits.push(ts)
+  }
+  count
 }
 
 ///|
@@ -1146,6 +1228,7 @@ fn Supervisor::mark_spawn_failed(self : Supervisor, inst : Instance) -> Unit {
   inst.restart_count += 1
   inst.last_reason = Some("spawn_failed")
   self.write_crash(inst, "spawn_failed")
+  self.record_storm_hit(inst.app_name, @dateku.now_ms())
   let app = match self.apps.get(inst.app_name) {
     Some(app) => app
     None => return

@@ -197,7 +197,12 @@ async fn accept_loop(
       accepted => accepted
     }
     match conn {
-      None => continue
+      None => {
+        // A rejected handshake is a wrong token or a probe: worth a line in
+        // the event log either way.
+        @core.log_event(state_dir, "bm2d.events.jsonl", "auth_failed")
+        continue
+      }
       Some(conn) =>
         match serve_conn(conn, sv, state_dir) {
           Some(mode) => return mode
