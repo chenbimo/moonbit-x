@@ -27,84 +27,80 @@ pub impl Show for ManifestError with fn output(self, logger) {
 pub extend ManifestError with Show::{to_string, output}
 
 ///|
-/// Directory names from the `members` list of moon.work.
+fn obj_get(ast : @moon_config.Ast, key : String) -> @moon_config.Ast? {
+  match ast {
+    Obj(fields, ..) =>
+      for pair in fields {
+        let (k, v) = pair
+        if k == key {
+          return Some(v)
+        }
+      }
+    _ => ()
+  }
+  None
+}
+
+///|
+fn ast_str(ast : @moon_config.Ast, key : String) -> String? {
+  match obj_get(ast, key) {
+    Some(Str(s, ..)) => Some(s)
+    _ => None
+  }
+}
+
+///|
+fn ast_str_or(
+  ast : @moon_config.Ast,
+  key : String,
+  fallback : String,
+) -> String {
+  match ast_str(ast, key) {
+    Some(s) => s
+    None => fallback
+  }
+}
+
+///|
+/// Directory names from the `members` list of moon.work, parsed with
+/// moonbitlang/moon_config (toolchain-grade parsing).
 pub fn parse_members(text : String) -> Array[String] {
-  let dirs = []
-  let mut inside = false
-  for line in text.split("\n") {
-    let trimmed = @fndash.trim_spaces(line)
-    if !inside {
-      if trimmed.has_prefix("members") && trimmed.contains("[") {
-        inside = true
+  let (ast, _reports) = @moon_config.parse_moon_work(text)
+  let dirs : Array[String] = []
+  match obj_get(ast, "members") {
+    Some(Arr(items, ..)) =>
+      for item in items {
+        match item {
+          Str(s, ..) => dirs.push(s)
+          _ => ()
+        }
       }
-      continue
-    }
-    if trimmed.has_prefix("]") || trimmed.has_prefix("#") {
-      break
-    }
-    // A member line looks like `"bm2",` — keep the quoted part.
-    let bytes = @utf8.encode(trimmed)
-    let mut start = -1
-    for i, byte in bytes {
-      if byte.to_int() == 0x22 && start < 0 {
-        start = i
-      } else if byte.to_int() == 0x22 && start >= 0 {
-        dirs.push(trimmed[start + 1:i].to_owned())
-        break
-      }
-    }
+    _ => ()
   }
   dirs
 }
+
+///|
 
 ///|
 /// Parse one moon.mod text: module name, version and the module paths in
 /// the import list (any @version suffix stripped). Raises Missing when
 /// name or version cannot be found.
 pub fn parse_mod(dir : String, text : String) -> Member raise ManifestError {
-  let mut name = ""
-  let mut version = ""
+  let (ast, _reports) = @moon_config.parse_moon_mod(text)
+  let name = ast_str_or(ast, "name", "")
+  let version = ast_str_or(ast, "version", "")
   let imports : Array[String] = []
-  let mut in_imports = false
-  for line in text.split("\n") {
-    let trimmed = @fndash.trim_spaces(line)
-    if trimmed.has_prefix("import") {
-      in_imports = true
-      continue
-    }
-    if in_imports {
-      if trimmed.has_prefix("\"") {
-        // An import line: strip the surrounding quotes and any @version
-        // suffix. The line starts with the opening quote at index 0, so the
-        // scan for the closing one starts at 1.
-        let mut stop = trimmed.length()
-        for i in 1..<trimmed.length() {
-          if trimmed[i].to_int() == 0x22 {
-            stop = i
-            break
-          }
-        }
-        let module_path = trimmed[1:stop].to_owned()
-        let mut base = module_path
-        for i, ch in module_path {
-          if ch == '@' {
-            base = module_path[:i].to_owned()
-            break
-          }
-        }
-        imports.push(base)
-        continue
+  // moon_config post-processes the import list into a "deps" object:
+  // { "moonbitlang/x": "0.5.1", ... } — the keys are the module paths
+  // (already @version-stripped).
+  match obj_get(ast, "deps") {
+    Some(Obj(fields, ..)) =>
+      for pair in fields {
+        let (module_path, _version) = pair
+        imports.push(module_path)
       }
-      if trimmed.has_prefix("}") {
-        in_imports = false
-      }
-      continue
-    }
-    if trimmed.has_prefix("name") && trimmed.contains("=") {
-      name = @fndash.quoted_value(trimmed)
-    } else if trimmed.has_prefix("version") && trimmed.contains("=") {
-      version = @fndash.quoted_value(trimmed)
-    }
+    _ => ()
   }
   if name == "" || version == "" {
     raise Missing(dir~)

@@ -26,7 +26,7 @@ test "parse_members reads quoted dirs until the list closes" {
   let text =
     #|members = [
     #|  "bm2",
-    #|  "notify", # trailing comment
+    #|  "notify", // trailing comment
     #|]
     #|
     #|root = "root"

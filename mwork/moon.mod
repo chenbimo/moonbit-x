@@ -19,5 +19,6 @@ keywords = [ "moonbit", "workspace", "manifest", "toposort", "moon.work" ]
 repository = "https://github.com/chenbimo/moonbit"
 
 import {
+  "moonbitlang/moon_config@0.4.2",
   "chensuiyi/fndash@0.1.0",
 }
