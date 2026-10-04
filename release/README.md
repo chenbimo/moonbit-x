@@ -30,6 +30,14 @@ bash scripts/release.sh --minor notify         # publish one member
 
 By default every member except the tool itself is published; default bump is `--patch`.
 
+## Author
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo)) · [mooncakes: chensuiyi](https://mooncakes.io/user/chensuiyi)
+
+## License
+
+MIT
+
 <details>
 <summary><strong>中文说明</strong></summary>
 
@@ -45,11 +53,3 @@ moon.work 多模块发布编排工具。
 - 需要 `moon` 与 mooncakes 账号令牌(首次发布前 `moon login`)
 
 </details>
-
-## Author
-
-**陈随易** ([@chenbimo](https://github.com/chenbimo)) · [mooncakes: chensuiyi](https://mooncakes.io/user/chensuiyi)
-
-## License
-
-MIT

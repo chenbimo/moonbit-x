@@ -70,6 +70,14 @@ Design contract: credential-free failures (reasons never contain url / secret / 
 - `moonbitlang/x@0.5.1` (HMAC signing)
 - `moonbitlang/moon_config` — no; deps are `chensuiyi/dateku@0.1.0` + `chensuiyi/fndash@0.1.0`
 
+## Author
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo)) · [mooncakes: chensuiyi](https://mooncakes.io/user/chensuiyi)
+
+## License
+
+MIT
+
 <details>
 <summary><strong>中文说明</strong></summary>
 
@@ -132,11 +140,3 @@ let report = engine.pump(now) // 每 tick 调用一次
 - `chensuiyi/dateku@0.1.0` + `chensuiyi/fndash@0.1.0`
 
 </details>
-
-## Author
-
-**陈随易** ([@chenbimo](https://github.com/chenbimo)) · [mooncakes: chensuiyi](https://mooncakes.io/user/chensuiyi)
-
-## License
-
-MIT

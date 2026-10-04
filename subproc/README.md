@@ -2,27 +2,6 @@
 
 Synchronous process management for MoonBit: spawn (argv / env / cwd / log redirection / own process group), waitpid and pidfd waits, process-group signals, procfs sampling (rss / cpu), and platform probes (uname / SO_REUSEPORT / self_exe). Linux native.
 
-<details>
-<summary><strong>中文文档</strong></summary>
-
-## 简介
-
-同步子进程管理:spawn(参数 / env / cwd / 日志重定向 / 独立进程组)、waitpid 与 pidfd 等待、进程组信号、procfs 采样(rss / cpu)、平台探针(uname / SO_REUSEPORT / self_exe)。Linux native。
-
-## 功能
-
-- **pidfd**(Linux ≥ 5.3):内核句柄钉住原始进程,pid 复用不干扰存活/退出判定
-- `wait_child_timeout`:硬超时,到期 SIGKILL 整组并有界回收
-- `instance_env_blob`:白名单环境 + 保留变量的 NUL blob
-
-## 场景
-
-- 进程监督器:拉起、回收、崩溃预算、内存采样
-- 构建工具:运行测试 / 编译器并限时收尸
-- 平台探针:启动前检查 OS / 端口复用能力
-
-</details>
-
 ## Features
 
 - **pidfd** (Linux ≥ 5.3): a kernel handle pinned to one process — pid reuse never fools liveness/exit checks, adopted (non-child) processes supported
@@ -85,3 +64,24 @@ let rss = @subproc.read_rss_kb(pid)
 ## License
 
 MIT
+
+<details>
+<summary><strong>中文文档</strong></summary>
+
+## 简介
+
+同步子进程管理:spawn(参数 / env / cwd / 日志重定向 / 独立进程组)、waitpid 与 pidfd 等待、进程组信号、procfs 采样(rss / cpu)、平台探针(uname / SO_REUSEPORT / self_exe)。Linux native。
+
+## 功能
+
+- **pidfd**(Linux ≥ 5.3):内核句柄钉住原始进程,pid 复用不干扰存活/退出判定
+- `wait_child_timeout`:硬超时,到期 SIGKILL 整组并有界回收
+- `instance_env_blob`:白名单环境 + 保留变量的 NUL blob
+
+## 场景
+
+- 进程监督器:拉起、回收、崩溃预算、内存采样
+- 构建工具:运行测试 / 编译器并限时收尸
+- 平台探针:启动前检查 OS / 端口复用能力
+
+</details>

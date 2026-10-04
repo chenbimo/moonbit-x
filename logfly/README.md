@@ -2,27 +2,6 @@
 
 Logging for MoonBit: plain text / JSONL line formats with automatic ISO timestamps, plus size-triggered rotation in rename or copytruncate mode.
 
-<details>
-<summary><strong>中文文档</strong></summary>
-
-## 简介
-
-日志库:纯文本 / JSONL 两种行格式,自动 ISO 时间戳,按大小触发轮转(rename 与 copytruncate 双模式)。
-
-## 功能
-
-- `plain`:一行时间戳前缀文本——崩溃记录、人读日志
-- `event`:JSONL 管理事件,值传已编码片段——调用方省略的字段就不会出现在线上
-- `maybe_rotate`:超限轮转;文件不存在不算错
-
-## 场景
-
-- 守护进程事件日志(JSONL,机器可解析)
-- 崩溃记录与人读日志(纯文本)
-- 按大小轮转:rename(自写日志)/ copytruncate(进程持 fd)
-
-</details>
-
 ## Features
 
 - `plain`: one timestamp-prefixed text line — crash records, human-read logs
@@ -70,3 +49,24 @@ Logging for MoonBit: plain text / JSONL line formats with automatic ISO timestam
 ## License
 
 MIT
+
+<details>
+<summary><strong>中文文档</strong></summary>
+
+## 简介
+
+日志库:纯文本 / JSONL 两种行格式,自动 ISO 时间戳,按大小触发轮转(rename 与 copytruncate 双模式)。
+
+## 功能
+
+- `plain`:一行时间戳前缀文本——崩溃记录、人读日志
+- `event`:JSONL 管理事件,值传已编码片段——调用方省略的字段就不会出现在线上
+- `maybe_rotate`:超限轮转;文件不存在不算错
+
+## 场景
+
+- 守护进程事件日志(JSONL,机器可解析)
+- 崩溃记录与人读日志(纯文本)
+- 按大小轮转:rename(自写日志)/ copytruncate(进程持 fd)
+
+</details>

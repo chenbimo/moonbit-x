@@ -2,27 +2,6 @@
 
 Durable file operations for MoonBit: atomic write (fsync + rename + parent-dir fsync), `mkdir_p`, append, chmod, log rotation (rename / copytruncate), flock, and /proc-friendly small reads. Linux native.
 
-<details>
-<summary><strong>中文文档</strong></summary>
-
-## 简介
-
-崩溃安全的文件操作库:原子写(fsync + rename + 父目录 fsync)、`mkdir_p`、追加、chmod、日志轮转(rename / copytruncate 双模式)、flock、/proc 友好的小文件读取。Linux native。
-
-## 功能
-
-- 每一步写都由 poll 限时(5s),满盘/卡死目标不会挂住调用方
-- `mkdir_p` 幂等;错误统一 `FileError::Failed(op~, errno~)`
-- 运行时零依赖
-
-## 场景
-
-- 守护进程状态文件:掉电后不丢、不半截
-- 日志轮转:自己写的日志用 rename,进程持有 fd 的用 copytruncate
-- 单实例锁:非阻塞 flock,CLOEXEC 防子进程继承
-
-</details>
-
 ## Features
 
 - Atomic write: `.tmp` → fsync → rename, parent directory fsynced as well
@@ -77,3 +56,24 @@ let cmdline = @fsx.read_small("/proc/self/cmdline")
 ## License
 
 MIT
+
+<details>
+<summary><strong>中文文档</strong></summary>
+
+## 简介
+
+崩溃安全的文件操作库:原子写(fsync + rename + 父目录 fsync)、`mkdir_p`、追加、chmod、日志轮转(rename / copytruncate 双模式)、flock、/proc 友好的小文件读取。Linux native。
+
+## 功能
+
+- 每一步写都由 poll 限时(5s),满盘/卡死目标不会挂住调用方
+- `mkdir_p` 幂等;错误统一 `FileError::Failed(op~, errno~)`
+- 运行时零依赖
+
+## 场景
+
+- 守护进程状态文件:掉电后不丢、不半截
+- 日志轮转:自己写的日志用 rename,进程持有 fd 的用 copytruncate
+- 单实例锁:非阻塞 flock,CLOEXEC 防子进程继承
+
+</details>
