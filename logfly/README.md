@@ -2,6 +2,12 @@
 
 Logging for MoonBit: plain text / JSONL line formats with automatic ISO timestamps, plus size-triggered rotation in rename or copytruncate mode.
 
+## Install
+
+```bash
+moon add chensuiyi/logfly
+```
+
 ## Features
 
 - `plain`: one timestamp-prefixed text line — crash records, human-read logs
@@ -53,20 +59,59 @@ MIT
 <details>
 <summary><strong>中文文档</strong></summary>
 
-## 简介
+# chensuiyi/logfly
 
-日志库:纯文本 / JSONL 两种行格式,自动 ISO 时间戳,按大小触发轮转(rename 与 copytruncate 双模式)。
+MoonBit 日志库:纯文本 / JSONL 两种行格式,自动 ISO 时间戳,按大小触发轮转(rename 与 copytruncate 双模式)。
+
+## 安装
+
+```bash
+moon add chensuiyi/logfly
+```
 
 ## 功能
 
 - `plain`:一行时间戳前缀文本——崩溃记录、人读日志
 - `event`:JSONL 管理事件,值传已编码片段——调用方省略的字段就不会出现在线上
 - `maybe_rotate`:超限轮转;文件不存在不算错
+- 依赖:`chensuiyi/fsx` + `chensuiyi/dateku` + `chensuiyi/fndash`
 
 ## 场景
 
 - 守护进程事件日志(JSONL,机器可解析)
 - 崩溃记录与人读日志(纯文本)
-- 按大小轮转:rename(自写日志)/ copytruncate(进程持 fd)
+- 长驻服务:按大小轮转控制磁盘占用
+
+## API
+
+| 函数 | 说明 |
+| --- | --- |
+| `plain(path, text)` | 时间戳前缀文本行 |
+| `event(path, event, fields)` | JSONL 事件行 |
+| `maybe_rotate(path, max_bytes, copytruncate?)` | 超限轮转,返回是否轮转 |
+
+## 用法示例
+
+```moonbit
+// 管理事件:省略的可选字段不会以 null 出现在线上
+@logfly.event("/var/lib/app/events.jsonl", "spawn_failed", [
+  ("app", @fndash.jstr("api")),
+  ("pid", "42"),
+])
+
+// 崩溃记录:纯文本,自动时间戳
+@logfly.plain("/var/log/app/crash.log", "app=api reason=exit_1")
+
+// 超过 10 MB 轮转
+@logfly.maybe_rotate("/var/log/app/events.jsonl", 10485760)
+```
+
+## 作者
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo))
+
+## 协议
+
+MIT
 
 </details>

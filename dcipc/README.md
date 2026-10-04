@@ -2,6 +2,12 @@
 
 Control channel for local daemons: length-prefixed frames, shared-token authentication over loopback TCP, and contact files (port / token) in the state dir. Asynchronous (async runtime).
 
+## Install
+
+```bash
+moon add chensuiyi/dcipc
+```
+
 ## Features
 
 - Auth first: the server acks the token frame with one byte; rejection closes the connection, so a wrong token surfaces as EOF rather than a protocol error
@@ -54,13 +60,19 @@ MIT
 <details>
 <summary><strong>中文文档</strong></summary>
 
-## 简介
+# chensuiyi/dcipc
 
-本地守护进程控制通道:长度前缀帧协议、共享令牌认证(loopback TCP)、状态目录接触文件(port / token)。异步(async 运行时)。
+MoonBit 本地守护进程控制通道:长度前缀帧协议、共享令牌认证(loopback TCP)、状态目录接触文件(port / token)。异步(async 运行时)。
+
+## 安装
+
+```bash
+moon add chensuiyi/dcipc
+```
 
 ## 功能
 
-- 认证先行:token 帧后服务端回单字节确认,拒绝 = 直接断连
+- 认证先行:token 帧后服务端回单字节确认,拒绝 = 直接断连——错误 token 呈现为 EOF 而非协议错误
 - 常量时间 token 比较,时序不泄露前缀
 - 帧上限 4MB;握手与静默客户端均有 5s 超时
 
@@ -68,5 +80,38 @@ MIT
 
 - CLI ↔ 守护进程控制通道(start/stop/list/status)
 - 协议与传输解耦:Unix socket 等传输可作为后续扩展点
+
+## API
+
+| 函数 | 说明 |
+| --- | --- |
+| `generate_token()` | 内核 RNG 256-bit |
+| `dial(state_dir)` | 按 port 文件连接 |
+| `accept_authed(server, token)` | 接受并认证 |
+| `round_trip_bytes(conn, token, payload, timeout_ms)` | 认证往返 |
+| `read_frame_timeout(conn, timeout_ms)` | 读一帧(静默容错) |
+| `read_token` / `read_daemon_port` | 接触文件 |
+
+## 用法示例
+
+```moonbit
+// 守护进程侧
+let token = @dcipc.generate_token()
+@fsx.write_atomic(state_dir + "/daemon.token", @utf8.encode(token))
+let conn = @dcipc.accept_authed(server, token)
+@dcipc.write_frame(conn, response_payload)
+
+// 客户端侧
+let conn = @dcipc.dial(state_dir)
+let resp = @dcipc.round_trip_bytes(conn, token, request_payload, 5000)
+```
+
+## 作者
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo))
+
+## 协议
+
+MIT
 
 </details>

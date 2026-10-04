@@ -2,6 +2,12 @@
 
 Epoch milliseconds → ISO 8601 / RFC 5322 timestamps for MoonBit, UTC only.
 
+## Install
+
+```bash
+moon add chensuiyi/dateku
+```
+
 ## Features
 
 - `iso8601`: civil-from-days algorithm; leap-century rules and millisecond boundaries tested
@@ -42,18 +48,48 @@ MIT
 <details>
 <summary><strong>中文文档</strong></summary>
 
-## 简介
+# chensuiyi/dateku
 
-epoch 毫秒 → ISO 8601 / RFC 5322 时间戳,仅 UTC。
+MoonBit 时间戳库:epoch 毫秒 → ISO 8601 / RFC 5322,仅 UTC。
+
+## 安装
+
+```bash
+moon add chensuiyi/dateku
+```
 
 ## 功能
 
 - `iso8601`:civil-from-days 算法,闰世纪规则与毫秒边界均有测试
 - `rfc5322`:邮件 Date 头(星期/月份英文名)
+- 刻意不做:时区、本地化、解析(v2 按需)
 
 ## 场景
 
-- 日志行时间戳
-- 邮件 Date 头
+- 日志行时间戳(ISO 8601)
+- 邮件 Date 头(RFC 5322)
+
+## API
+
+| 函数 | 说明 |
+| --- | --- |
+| `now_ms()` | 当前 epoch 毫秒 |
+| `iso8601(epoch_ms)` | `2026-10-03T08:15:30.123Z` |
+| `rfc5322(epoch_ms)` | `Sat, 03 Oct 2026 08:15:30 +0000` |
+
+## 用法示例
+
+```moonbit
+@dateku.iso8601(1790998530123UL)   // "2026-10-03T08:15:30.123Z"
+@dateku.rfc5322(1790998530000UL)   // "Sat, 03 Oct 2026 08:15:30 +0000"
+```
+
+## 作者
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo))
+
+## 协议
+
+MIT
 
 </details>

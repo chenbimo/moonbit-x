@@ -2,6 +2,12 @@
 
 lodash-style pure-function utilities for MoonBit: string trimming, strict integer parsing, quoted-value extraction, JSON assembly, and percent-encoding. Zero dependencies.
 
+## Install
+
+```bash
+moon add chensuiyi/fndash
+```
+
 ## Features
 
 - `trim_spaces`: trim both ends, CRLF-tolerant
@@ -59,20 +65,65 @@ MIT
 <details>
 <summary><strong>中文文档</strong></summary>
 
-## 简介
+# chensuiyi/fndash
 
-纯函数工具集:字符串裁剪、严格整数解析、引号值提取、JSON 拼装、百分号编码。
+MoonBit 纯函数工具集(lodash 风格):字符串裁剪、严格整数解析、引号值提取、JSON 拼装、百分号编码。零依赖。
+
+## 安装
+
+```bash
+moon add chensuiyi/fndash
+```
 
 ## 功能
 
-- `jobj` 接收已编码的值片段:可选字段不出现在输入里,就不会以 null 出现在线上
-- `parse_int` 严格模式:非纯数字一律 `None`
-- 准入规则:纯函数、零依赖、有测试,不收带 I/O 的函数
+- `trim_spaces`:去两端空白,容忍 CRLF
+- `parse_int`:严格纯数字整数——非数字一律 `None`,绝不返回残缺值
+- `quoted_value`:行内首个双引号段
+- `json_escape` / `jstr` / `jobj` / `jarr`:JSON 拼装积木——输入里省略的可选字段,绝不会以 null 出现在线上
+- `url_encode`:按 UTF-8 百分号编码
 
 ## 场景
 
-- 配置/清单文件的行级解析(引号值、键值对)
-- 流式拼装 JSON(可选字段省略即不出现在线上)
-- URL 查询串与表单编码
+- 行级配置 / 清单解析(`key = "value"` 形态)
+- API 载荷的流式 JSON 拼装
+- 查询串与表单体编码
+
+## API
+
+| 函数 | 说明 |
+| --- | --- |
+| `trim_spaces(text)` | 去两端空白,容忍 CRLF |
+| `parse_int(text)` | 严格纯数字整数,否则 `None` |
+| `quoted_value(line)` | 首个双引号段 |
+| `json_escape(text)` | 转义为可嵌入 JSON 字符串 |
+| `jstr(text)` | 引号包裹 + 转义的 JSON 字符串 |
+| `jobj(fields)` | 由已编码片段拼 JSON 对象 |
+| `jarr(items)` | 由已编码片段拼 JSON 数组 |
+| `url_encode(text)` | 按 UTF-8 百分号编码 |
+
+## 用法示例
+
+```moonbit
+// JSON 拼装:省略的可选字段不会以 null 出现在线上
+@fndash.jobj([
+  ("msg", @fndash.jstr("hello")),
+  ("count", "3"),
+])
+
+// 清单行解析
+@fndash.quoted_value("name = \"chensuiyi/bm2\"")   // "chensuiyi/bm2"
+
+// 查询编码
+@fndash.url_encode("a b&c=1")                      // "a%20b%26c%3D1"
+```
+
+## 作者
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo))
+
+## 协议
+
+MIT
 
 </details>
