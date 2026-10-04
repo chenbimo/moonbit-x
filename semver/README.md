@@ -1,14 +1,28 @@
 # chensuiyi/semver
 
-Semantic versioning · 语义版本
+Semantic versioning for MoonBit: lenient parsing, comparison, major/minor/patch bumping.
 
-<table>
-<tr>
-<th width="50%">中文</th>
-<th width="50%">English</th>
-</tr>
-<tr>
-<td valign="top">
+## Install
+
+```bash
+moon add chensuiyi/semver
+```
+
+## API
+
+| Interface | Description |
+| --- | --- |
+| `parse(text)` | Lenient extraction of the first triple |
+| `compare(a, b)` | -1 / 0 / 1 |
+| `bump(v, kind)` | `Major` / `Minor` / `Patch` increment |
+| `Semver::to_string` | `1.4.0` |
+
+- `parse` is deliberately lenient: any prefix is skipped, pre-release suffixes compare as their release triple, text without digits yields all zeros
+
+<details>
+<summary><strong>中文说明</strong></summary>
+
+# chensuiyi/semver
 
 语义版本:宽松解析、比较、major/minor/patch 递增。
 
@@ -16,26 +30,8 @@ Semantic versioning · 语义版本
 - `compare` 逐段 ordering,返回 -1/0/1
 - `bump` 递增一段、清零低位段
 
-</td>
-<td valign="top">
+</details>
 
-Semantic versioning: lenient parsing, comparison, major/minor/patch bumping.
+## License
 
-- `parse` is deliberately lenient: any prefix is skipped (`v`, product names), scanning stops at the first non-version character; pre-release suffixes (`1.4.0-beta`) compare as their release triple; text without digits yields all zeros (treat as "unknown version")
-- `compare` is segment-by-segment ordering: -1, 0, or 1
-- `bump` increments one segment and zeroes the ones below
-
-</td>
-</tr>
-</table>
-
-## API
-
-| 接口 Interface | 说明 Description |
-| --- | --- |
-| `parse(text)` | 宽松解析;Lenient extraction of the first triple |
-| `compare(a, b)` | -1 / 0 / 1 |
-| `bump(v, kind)` | `Major` / `Minor` / `Patch` 递增;Increment one segment |
-| `Semver::to_string` | `1.4.0` |
-
-License: MIT
+MIT
