@@ -31,8 +31,8 @@ moon add chensuiyi/dateku
 <summary><strong>用法示例 / usage</strong></summary>
 
 ```moonbit
-@dateku.iso8601(1790998530123UL)   // "2026-10-03T08:15:30.123Z"
-@dateku.rfc5322(1790998530000UL)   // "Sat, 03 Oct 2026 08:15:30 +0000"
+@dateku.iso8601(1791015330123UL)   // "2026-10-03T08:15:30.123Z"
+@dateku.rfc5322(1791015330000UL)   // "Sat, 03 Oct 2026 08:15:30 +0000"
 ```
 
 </details>
@@ -80,8 +80,8 @@ moon add chensuiyi/dateku
 ## 用法示例
 
 ```moonbit
-@dateku.iso8601(1790998530123UL)   // "2026-10-03T08:15:30.123Z"
-@dateku.rfc5322(1790998530000UL)   // "Sat, 03 Oct 2026 08:15:30 +0000"
+@dateku.iso8601(1791015330123UL)   // "2026-10-03T08:15:30.123Z"
+@dateku.rfc5322(1791015330000UL)   // "Sat, 03 Oct 2026 08:15:30 +0000"
 ```
 
 ## 作者
