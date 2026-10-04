@@ -7,8 +7,8 @@
 let notifyKeys : Array[String] = [
   "enabled", "timeout_ms", "dedupe_window_s", "max_per_minute", "queue_size", "events",
   "report_interval_min", "report_fields", "daily_report_hour", "include_log_lines",
-  "threshold_rss_percent", "threshold_offline_min", "threshold_restarts",
-  "start_timeout_ms", "threshold_disk_mb", "threshold_storm", "target",
+  "threshold_rss_percent", "threshold_offline_min", "threshold_restarts", "start_timeout_ms",
+  "threshold_disk_mb", "threshold_storm", "target",
 ]
 
 ///|

@@ -817,7 +817,11 @@ pub fn is_oom_kill(sig : Int?, rss_kb : Int, max_memory_mb : Int) -> Bool {
 
 ///|
 /// Record a restart inside the storm window for a project.
-fn Supervisor::record_storm_hit(self : Supervisor, app_name : String, now : UInt64) -> Unit {
+fn Supervisor::record_storm_hit(
+  self : Supervisor,
+  app_name : String,
+  now : UInt64,
+) -> Unit {
   match self.storm_hits.get(app_name) {
     Some(hits) => hits.push(now)
     None => self.storm_hits[app_name] = [now]
@@ -826,7 +830,11 @@ fn Supervisor::record_storm_hit(self : Supervisor, app_name : String, now : UInt
 
 ///|
 /// Hits inside the storm window, pruning older entries in place.
-fn storm_hit_count(hits : Array[UInt64], now : UInt64, window_ms : UInt64) -> Int {
+fn storm_hit_count(
+  hits : Array[UInt64],
+  now : UInt64,
+  window_ms : UInt64,
+) -> Int {
   let fresh : Array[UInt64] = []
   let mut count = 0
   for ts in hits {
