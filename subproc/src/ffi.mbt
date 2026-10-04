@@ -96,5 +96,12 @@ extern "C" fn c_self_exe(buf : Bytes, cap : Int) -> Int = "subproc_self_exe"
 extern "C" fn c_exit(code : Int) -> Unit = "subproc_exit"
 
 ///|
+extern "C" fn c_load_1m() -> Double = "subproc_load_1m"
+
+///|
+#borrow(path)
+extern "C" fn c_disk_free_kb(path : Bytes) -> Int64 = "subproc_disk_free_kb"
+
+///|
 #borrow(data)
 extern "C" fn c_write_fd(fd : Int, data : Bytes) -> Int = "subproc_write_fd"

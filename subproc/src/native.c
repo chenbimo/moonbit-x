@@ -13,6 +13,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
+#include <sys/statvfs.h>
 #include <netinet/in.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -228,6 +229,22 @@ void subproc_sleep_ms(int32_t ms) {
 MOONBIT_FFI_EXPORT
 int32_t subproc_close(int32_t fd) {
   return close(fd) == 0 ? 0 : -errno;
+}
+
+/* One-minute load average, or -1.0 when unavailable. */
+MOONBIT_FFI_EXPORT
+double subproc_load_1m(void) {
+  double loads[1];
+  if (getloadavg(loads, 1) != 1) return -1.0;
+  return loads[0];
+}
+
+/* Free space on the filesystem holding path, in KiB, or -1 on error. */
+MOONBIT_FFI_EXPORT
+int64_t subproc_disk_free_kb(const char *path) {
+  struct statvfs fs;
+  if (statvfs(path, &fs) != 0) return -1;
+  return (int64_t)fs.f_bavail * ((int64_t)fs.f_bsize / 1024);
 }
 
 /* Probe whether a cluster app's listener enables SO_REUSEPORT, by asking

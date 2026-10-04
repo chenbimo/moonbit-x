@@ -157,3 +157,25 @@ test "clk_tck is a sane divisor" {
   assert_true(@subproc.clk_tck() >= 50)
   assert_true(@subproc.clk_tck() <= 10000)
 }
+
+///|
+test "load_1m/sane_value" {
+  let load = @subproc.load_1m()
+  match load {
+    Some(value) => inspect(value >= 0.0, content="true")
+    None => ()
+  }
+}
+
+///|
+test "disk_free_kb/root_is_positive" {
+  match @subproc.disk_free_kb("/tmp") {
+    Some(kb) => inspect(kb > 0L, content="true")
+    None => ()
+  }
+}
+
+///|
+test "disk_free_kb/missing_path_is_none" {
+  assert_eq(@subproc.disk_free_kb("/nonexistent-bm2-probe"), None)
+}

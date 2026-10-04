@@ -48,6 +48,28 @@ pub fn get_uid() -> Int {
 }
 
 ///|
+/// One-minute load average, None when unavailable.
+pub fn load_1m() -> Double? {
+  let value = c_load_1m()
+  if value < 0.0 {
+    None
+  } else {
+    Some(value)
+  }
+}
+
+///|
+/// Free space in KiB on the filesystem holding `path`, None on error.
+pub fn disk_free_kb(path : String) -> Int64? {
+  let kb = c_disk_free_kb(cstr(path))
+  if kb < 0L {
+    None
+  } else {
+    Some(kb)
+  }
+}
+
+///|
 /// Kernel name from uname(2), e.g. "Linux".
 pub fn uname() -> String raise ProcessError {
   let buf = Bytes::make(64, b'\x00')
