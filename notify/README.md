@@ -1,45 +1,71 @@
 # chensuiyi/notify
 
-MoonBit 多平台通知库 · Multi-platform notification library for MoonBit
+Multi-platform notification library for MoonBit: seven platform presets (Feishu / DingTalk / WeCom / Slack / Discord / generic webhook / SMTP email), HTTP & SMTP delivery, and an optional dedupe / rate-limit / retry engine.
 
-<table>
-<tr>
-<th width="50%">中文</th>
-<th width="50%">English</th>
-</tr>
-<tr>
-<td valign="top">
+## Install
 
-### 简介
+```bash
+moon add chensuiyi/notify
+```
 
-一个库覆盖通知的完整链路:消息模型、七种平台预设、HTTP/SMTP 投递,以及可选的去重/限流/重试引擎。
+## Platforms
 
-设计约定:
+| preset | Platform | Transport |
+| --- | --- | --- |
+| `feishu` | Feishu | HTTPS (optional signing) |
+| `dingtalk` | DingTalk | HTTPS (HMAC signing) |
+| `wecom` | WeCom | HTTPS |
+| `slack` | Slack | HTTPS |
+| `discord` | Discord | HTTPS |
+| `webhook` | Generic webhook | HTTPS (Bearer) |
+| `email` | Email | SMTP (STARTTLS / smtps) |
 
-- **凭据不泄露**——失败原因永不包含 url / secret / password,可放心打进日志
-- **时间由调用方注入**——库不读时钟,完全可测
-- **不写日志不落盘**——只投递并返回结构化结果
+## Usage
 
-</td>
-<td valign="top">
+```moonbit
+// One-shot delivery: None = success, Some(reason) = failure (credential-free)
+let failure = deliver(target, msg, 5000, { host: "prod-1", product: "myapp" })
+```
 
-### Intro
+```moonbit
+// Optional engine: dedupe → rate-limit → queue → retry with backoff
+let engine = Engine::new({ host: "prod-1", product: "myapp" })
+engine.emit(
+  now, "crash|api", "api", msg, targets, 5000,
+  dedupe_window_s=3600, rate_per_minute=30, queue_limit=128,
+)
+let report = engine.pump(now) // call once per tick
+```
 
-One library for the whole notification path: a message model, seven platform presets, HTTP/SMTP delivery, and an optional dedupe / rate-limit / retry engine.
+## API
 
-Design contract:
+| Interface | Description |
+| --- | --- |
+| `deliver(target, msg, timeout_ms, ctx)` | Deliver one message to a single target |
+| `deliver_all(targets, msg, timeout_ms, ctx)` | Deliver to each target, returns `(name, failure)` list |
+| `Engine::new(ctx, max_attempts?)` | Create the engine |
+| `Engine::emit(...)` | Enqueue a message, returns `Queued / Deduped / RateLimited / QueueFull` |
+| `Engine::pump(now)` | Deliver the queue head, returns `remaining / outcome / owner` |
+| `Engine::dropped()` / `Engine::queued()` | Drop and queue counters |
 
-- **Credential-free failures** — failure reasons never contain url / secret / password, safe to log
-- **Caller-injected time** — the library never reads a clock, fully testable
-- **No logging, no disk** — delivers and returns structured results
+Design contract: credential-free failures (reasons never contain url / secret / password), caller-injected time, no logging no disk.
 
-</td>
-</tr>
-</table>
+## Dependencies
 
-## 平台 Platforms
+- `moonbitlang/async@0.22.4` (HTTP / SMTP / timeouts)
+- `moonbitlang/x@0.5.1` (HMAC signing)
+- `moonbitlang/moon_config` — no; deps are `chensuiyi/dateku@0.1.0` + `chensuiyi/fndash@0.1.0`
 
-| preset | 平台 Platform | 传输 Transport |
+<details>
+<summary><strong>中文说明</strong></summary>
+
+# chensuiyi/notify
+
+MoonBit 多平台通知库:七种平台预设(飞书/钉钉/企业微信/Slack/Discord/通用 webhook/SMTP 邮件)、HTTP 与 SMTP 投递、可选的去重/限流/重试引擎。
+
+## 平台
+
+| preset | 平台 | 传输 |
 | --- | --- | --- |
 | `feishu` | 飞书 | HTTPS(可选签名) |
 | `dingtalk` | 钉钉 | HTTPS(HMAC 签名) |
@@ -49,7 +75,13 @@ Design contract:
 | `webhook` | 通用 webhook | HTTPS(Bearer) |
 | `email` | 邮件 | SMTP(STARTTLS / smtps) |
 
-## 用法 Usage
+## 设计约定
+
+- **凭据不泄露**——失败原因永不包含 url / secret / password,可放心打进日志
+- **时间由调用方注入**——库不读时钟,完全可测
+- **不写日志不落盘**——只投递并返回结构化结果
+
+## 用法
 
 ```moonbit
 // 一次性投递:None = 成功,Some(reason) = 失败原因(不含凭据)
@@ -79,9 +111,14 @@ let report = engine.pump(now) // 每 tick 调用一次
 
 限流窗口按 `owner` 独立,计数发生在入队时——失败端点不会绕过限流。
 
-## 依赖 Dependencies
+## 依赖
 
 - `moonbitlang/async@0.22.4`(HTTP / SMTP / 超时)
 - `moonbitlang/x@0.5.1`(HMAC 签名)
+- `chensuiyi/dateku@0.1.0` + `chensuiyi/fndash@0.1.0`
 
-License: MIT
+</details>
+
+## License
+
+MIT
