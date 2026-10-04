@@ -347,6 +347,7 @@ secret = "${BM2_TEST_SIGN_KEY}"
 
 - An unset variable is a hard parse error naming the variable — never a silent empty value.
 - The environment is that of the process parsing the config: `bm2 start` / `bm2 notify` use the current shell, supervised reporting uses the daemon's. A daemon's environment is frozen at its start, so after changing a variable run `bm2 reload` to swap in a fresh daemon, then `bm2 start`.
+- The daemon inherits a minimal environment (`PATH`/`HOME`/`TMPDIR`) plus every `BM2_`-prefixed variable — naming credential variables in that namespace carries them through to the daemon.
 - No other field (script, port, ...) goes through expansion; only notification credentials need it.
 
 ### Policy fields
