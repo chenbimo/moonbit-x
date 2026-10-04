@@ -6,8 +6,8 @@
 ///|
 let notifyKeys : Array[String] = [
   "enabled", "timeout_ms", "dedupe_window_s", "max_per_minute", "queue_size", "events",
-  "report_interval_min", "report_fields", "include_log_lines", "threshold_rss_percent",
-  "threshold_offline_min", "threshold_restarts", "target",
+  "report_interval_min", "report_fields", "daily_report_hour", "include_log_lines",
+  "threshold_rss_percent", "threshold_offline_min", "threshold_restarts", "target",
 ]
 
 ///|
@@ -31,7 +31,7 @@ let notifyEvents : Array[String] = [
 
 ///|
 let notifyReportFields : Array[String] = [
-  "status", "rss", "cpu", "restarts", "uptime", "ports",
+  "status", "rss", "cpu", "restarts", "uptime", "ports", "peak", "disk", "load",
 ]
 
 ///|
@@ -61,6 +61,7 @@ pub fn parse_notify_section(
     report_fields: opt_string_array(table, "report_fields", "notify", [
       "status", "rss", "restarts", "uptime", "ports",
     ]),
+    daily_report_hour: opt_int(table, "daily_report_hour", "notify", -1),
     include_log_lines: opt_int(table, "include_log_lines", "notify", 0),
     threshold_rss_percent: opt_int(table, "threshold_rss_percent", "notify", 0),
     threshold_offline_min: opt_int(table, "threshold_offline_min", "notify", 0),

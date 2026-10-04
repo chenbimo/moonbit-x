@@ -195,3 +195,48 @@ test "notify errors never echo a url, secret or password" {
   assert_false(message.contains("PASSSECRET"))
   assert_false(message.contains("gateway.example"))
 }
+
+///|
+test "daily_report_hour parses, defaults to off and validates its range" {
+  let config = @config.parse(
+    project_doc(
+      (
+        #|[notify]
+        #|enabled = true
+        #|daily_report_hour = 8
+        #|report_fields = ["status", "peak", "disk", "load"]
+      ),
+    ),
+    "/srv/yicode",
+  )
+  assert_eq(config.notify.daily_report_hour, 8)
+  assert_eq(config.notify.report_fields.length(), 4)
+  // Absent means disabled.
+  let plain = @config.parse(
+    project_doc(
+      (
+        #|[notify]
+        #|enabled = true
+      ),
+    ),
+    "/srv/yicode",
+  )
+  assert_eq(plain.notify.daily_report_hour, -1)
+  // Out of range is rejected in both directions.
+  assert_true(
+    notify_error("[notify]\ndaily_report_hour = 24\n").contains(
+      "daily_report_hour must be between",
+    ),
+  )
+  assert_true(
+    notify_error("[notify]\ndaily_report_hour = -2\n").contains(
+      "daily_report_hour is out of range",
+    ),
+  )
+  // Unknown report field stays rejected alongside the new ones.
+  assert_true(
+    notify_error("[notify]\nreport_fields = [\"peak\", \"ram\"]\n").contains(
+      "unknown value ram",
+    ),
+  )
+}

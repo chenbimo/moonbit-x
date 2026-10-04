@@ -144,10 +144,13 @@ pub fn Supervisor::online_count(self : Supervisor, app_name : String) -> Int {
 ///|
 /// One line per instance: status, memory, cpu, uptime, restarts, port. This is
 /// what makes a periodic report worth reading — it shows load per process.
+/// `peak` is the RSS high-water mark of the reporting window, shown when the
+/// caller asked for it.
 fn Supervisor::report_line(
   self : Supervisor,
   inst : Instance,
   now : UInt64,
+  peak? : Int? = None,
 ) -> String {
   let mut line = inst.app_name +
     "/" +
@@ -158,6 +161,10 @@ fn Supervisor::report_line(
   if inst.status is Online {
     match @subproc.read_rss_kb(inst.pid) {
       Some(kb) => line = line + " · RSS " + (kb / 1024).to_string() + "MB"
+      None => ()
+    }
+    match peak {
+      Some(kb) => line = line + " · peak " + (kb / 1024).to_string() + "MB"
       None => ()
     }
     match
@@ -197,16 +204,20 @@ fn format_percent(percent : Double) -> String {
 
 ///|
 /// The periodic report for one project: every instance on one line, plus the
-/// project's own shape. `report_fields` selects which of these appear.
+/// project's own shape. `report_fields` selects which of these appear. The
+/// daily variant reads its peaks from the daily window and says so in the
+/// title.
 fn Supervisor::build_report(
   self : Supervisor,
   app_name : String,
   policy : @config.NotifyConfig,
   now : UInt64,
+  daily? : Bool = false,
 ) -> @notify.Message {
   let lines = []
   let mut online = 0
   let mut other = 0
+  let want_peak = daily || policy.report_fields.contains("peak")
   match self.instances.get(app_name) {
     Some(arr) =>
       for inst in arr {
@@ -215,7 +226,16 @@ fn Supervisor::build_report(
         } else if !(inst.status is Stopped) {
           other += 1
         }
-        lines.push(self.report_line(inst, now))
+        let key = inst.app_name + "/" + inst.instance_id.to_string()
+        let peak = if want_peak {
+          match daily {
+            true => self.notify.take_daily_peak(key)
+            false => self.notify.take_report_peak(key)
+          }
+        } else {
+          None
+        }
+        lines.push(self.report_line(inst, now, peak~))
       }
     None => ()
   }
@@ -233,6 +253,18 @@ fn Supervisor::build_report(
       None => ()
     }
   }
+  if policy.report_fields.contains("load") {
+    match @subproc.load_1m() {
+      Some(value) => fields.push(("load1", format_percent(value)))
+      None => ()
+    }
+  }
+  if policy.report_fields.contains("disk") {
+    match @subproc.disk_free_kb(self.state_dir) {
+      Some(kb) => fields.push(("disk_free", (kb / 1048576).to_string() + "GB"))
+      None => ()
+    }
+  }
   @notify.Message::new(
     "report",
     if other > 0 {
@@ -240,13 +272,21 @@ fn Supervisor::build_report(
     } else {
       "info"
     },
-    "bm2 health report · \{app_name}",
+    if daily {
+      "bm2 daily report · \{app_name}"
+    } else {
+      "bm2 health report · \{app_name}"
+    },
     if lines.length() == 0 {
       "No instances."
     } else {
       lines.join("\n")
     },
-    "report|" + app_name,
+    if daily {
+      "daily_report|" + app_name
+    } else {
+      "report|" + app_name
+    },
     now,
     fields~,
   )
@@ -316,6 +356,23 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
           policy,
           app_name,
           self.build_report(app_name, policy, now),
+        )
+      }
+    }
+    if policy.enabled && policy.daily_report_hour >= 0 {
+      let day = now / 86400000UL
+      let due_at = day * 86400000UL +
+        (policy.daily_report_hour * 3600000).to_uint64()
+      let already = match self.last_daily_report_day.get(app_name) {
+        Some(sent) => sent
+        None => 0UL
+      }
+      if now >= due_at && already != day {
+        self.last_daily_report_day[app_name] = day
+        self.notify.emit(
+          policy,
+          app_name,
+          self.build_report(app_name, policy, now, daily=true),
         )
       }
     }

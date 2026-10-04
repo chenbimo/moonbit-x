@@ -362,8 +362,9 @@ bm2 notify <name>     # 只发给指定目标
 | `max_per_minute` | 发送上限（0~6000，默认 30），超限丢弃并计数；0 表示不限 | `30` |
 | `queue_size` | 该项目待发队列上限（1~4096，默认 128），满则丢最新事件并计数 | `128` |
 | `events` | 订阅的事件名，取值见事件表，未知值直接拒绝；默认空 | `["crash","errored"]` |
-| `report_interval_min` | 定期体检间隔（0~10080 分钟，默认 0 即关闭） | `60` |
-| `report_fields` | 体检包含的字段：`status`/`rss`/`cpu`/`restarts`/`uptime`/`ports` | `["status","rss"]` |
+| `report_interval_min` | 定期体检间隔（0~10080 分钟，默认 0 即关闭；最小 1 即每分钟一次） | `60` |
+| `report_fields` | 体检包含的字段：`status`/`rss`/`cpu`/`restarts`/`uptime`/`ports`/`peak`（窗口 RSS 峰值）/`disk`（状态目录所在盘剩余）/`load`（系统 1 分钟负载） | `["status","rss"]` |
+| `daily_report_hour` | 每日定点日报的小时（0~23，默认 -1 即关闭），内容同体检并附带自上一份日报以来的 RSS 峰值 | `8` |
 | `include_log_lines` | 崩溃通知附带 crash.log 末尾行数（0~50）；日志可能含敏感信息，默认 0 | `0` |
 | `threshold_rss_percent` | RSS 达到内存上限的百分比时告警（0~100，默认 0 即关闭） | `80` |
 | `threshold_offline_min` | 实例离开 online 超过该分钟数告警（0~1440，默认 0 即关闭） | `5` |
@@ -415,7 +416,9 @@ bm2 notify <name>     # 只发给指定目标
 | `threshold` | 内存接近上限、实例长时间未恢复、重启过频 |
 | `report` | 定期体检 |
 
-体检内容取决于 `report_fields`：实例状态、RSS、CPU 百分比（需要两次采样，守护进程重启后的首次不显示）、连续异常次数、运行时长、端口。`report_interval_min` 最小为 1，即每分钟一次体检；阈值与体检共用每分钟一次的评估节拍。
+体检内容取决于 `report_fields`：实例状态、RSS、CPU 百分比（需要两次采样，守护进程重启后的首次不显示）、连续异常次数、运行时长、端口，以及窗口峰值 `peak`（自上一份报告以来该实例 RSS 的最高水位，采样随内存检查每轮进行，报告后清零）、磁盘 `disk`（`~/.bm2` 所在文件系统的剩余空间）与系统负载 `load`（1 分钟 load average，守护进程级，每份一条）。`report_interval_min` 最小为 1，即每分钟一次体检；阈值与体检共用每分钟一次的评估节拍。
+
+`daily_report_hour` 在体检之外提供每日定点日报：到点发一份标题为 daily report 的报告，实例行携带自上一份日报以来的 RSS 峰值（独立于体检峰值窗口），同一自然日只发一次。
 
 ### 上报行为
 

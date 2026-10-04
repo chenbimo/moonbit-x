@@ -13,6 +13,10 @@ pub struct Notifier {
   /// cpu sample, both kept here so `Instance` stays about supervision only.
   offline_since : Map[String, UInt64]
   cpu_samples : Map[String, (UInt64, UInt64)]
+  /// Per-instance RSS peaks in kB: one window since the last health report,
+  /// one since the last daily report. Sampled wherever RSS is already read.
+  rss_peak : Map[String, Int]
+  rss_peak_daily : Map[String, Int]
 }
 
 ///|
@@ -27,6 +31,8 @@ pub fn Notifier::new(state_dir : String, host : String) -> Notifier {
     state_dir,
     offline_since: Map([]),
     cpu_samples: Map([]),
+    rss_peak: Map([]),
+    rss_peak_daily: Map([]),
   }
 }
 
@@ -50,6 +56,37 @@ pub fn Notifier::offline_since(
 ///|
 pub fn Notifier::forget_offline(self : Notifier, key : String) -> Unit {
   self.offline_since.remove(key)
+}
+
+///|
+/// Record a sampled RSS value into both peak windows. Windows are cleared by
+/// their reports, so a peak always means "since you last heard from us".
+pub fn Notifier::record_rss(self : Notifier, key : String, kb : Int) -> Unit {
+  match self.rss_peak.get(key) {
+    Some(peak) => if kb > peak { self.rss_peak[key] = kb }
+    None => self.rss_peak[key] = kb
+  }
+  match self.rss_peak_daily.get(key) {
+    Some(peak) => if kb > peak { self.rss_peak_daily[key] = kb }
+    None => self.rss_peak_daily[key] = kb
+  }
+}
+
+///|
+/// Take the since-last-report peak in kB, clearing the window. None when
+/// nothing was sampled since the previous report.
+pub fn Notifier::take_report_peak(self : Notifier, key : String) -> Int? {
+  let peak = self.rss_peak.get(key)
+  self.rss_peak.remove(key)
+  peak
+}
+
+///|
+/// Take the since-last-daily-report peak in kB, clearing the window.
+pub fn Notifier::take_daily_peak(self : Notifier, key : String) -> Int? {
+  let peak = self.rss_peak_daily.get(key)
+  self.rss_peak_daily.remove(key)
+  peak
 }
 
 ///|

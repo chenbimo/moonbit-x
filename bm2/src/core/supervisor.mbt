@@ -61,6 +61,8 @@ pub struct Supervisor {
   mut last_notify_check_ms : UInt64
   /// Per project: when its last health report went out.
   last_report_ms : Map[String, UInt64]
+  /// Per project: the epoch day its last daily report went out.
+  last_daily_report_day : Map[String, UInt64]
 }
 
 ///|
@@ -90,6 +92,7 @@ pub fn Supervisor::new(
     notify: Notifier::new(state_dir, @subproc.hostname()),
     last_notify_check_ms: 0UL,
     last_report_ms: Map([]),
+    last_daily_report_day: Map([]),
   }
 }
 
@@ -893,7 +896,11 @@ fn Supervisor::check_memory(self : Supervisor) -> Unit {
     for inst in arr {
       if inst.status is Online {
         match @subproc.read_rss_kb(inst.pid) {
-          Some(kb) =>
+          Some(kb) => {
+            self.notify.record_rss(
+              inst.app_name + "/" + inst.instance_id.to_string(),
+              kb,
+            )
             if kb > app.max_memory_mb * 1024 {
               inst.last_rss_kb = kb
               log_event(
@@ -922,6 +929,7 @@ fn Supervisor::check_memory(self : Supervisor) -> Unit {
             } else {
               self.notify_memory_pressure(inst, kb)
             }
+          }
           None => ()
         }
       }

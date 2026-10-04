@@ -247,3 +247,22 @@ test "cpu percent needs a baseline before it reports anything" {
   @fndash.discard(() => @subproc.kill_group(pid, @subproc.SIGKILL))
   @subproc.drain_child(pid)
 }
+
+///|
+/// RSS peaks are windowed: the biggest sample wins, taking clears the window,
+/// and the report window and the daily window stay independent.
+test "rss peak windows track maxima and clear on take" {
+  let notifier = wb_notifier("peak")
+  let key = "api/0"
+  notifier.record_rss(key, 100)
+  notifier.record_rss(key, 300)
+  notifier.record_rss(key, 200)
+  assert_eq(notifier.take_report_peak(key), Some(300))
+  // Taking clears: the next report starts a fresh window.
+  assert_eq(notifier.take_report_peak(key), None)
+  // The daily window was recording all along and is untouched by report takes.
+  assert_eq(notifier.take_daily_peak(key), Some(300))
+  assert_eq(notifier.take_daily_peak(key), None)
+  // An instance that was never sampled reports nothing.
+  assert_eq(notifier.take_report_peak("other/9"), None)
+}

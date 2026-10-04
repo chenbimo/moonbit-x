@@ -345,8 +345,9 @@ Everything under `[notify]` is optional; without the table the project reports n
 | `max_per_minute` | Send limit (0~6000, default 30); excess is dropped and counted | `30` |
 | `queue_size` | This project's queue bound (1~4096, default 128); overflow drops the newest event | `128` |
 | `events` | Subscribed event names; unknown values are rejected; empty by default | `["crash","errored"]` |
-| `report_interval_min` | Health report interval (0~10080 min, default 0 = off) | `60` |
-| `report_fields` | `status`/`rss`/`cpu`/`restarts`/`uptime`/`ports` | `["status","rss"]` |
+| `report_interval_min` | Periodic health report interval (0-10080 minutes, 0 disables; minimum 1 means once a minute) | `60` |
+| `report_fields` | Fields a report includes: `status`/`rss`/`cpu`/`restarts`/`uptime`/`ports`/`peak` (windowed RSS high-water mark)/`disk` (free space of the state filesystem)/`load` (1-minute system load) | `["status","rss"]` |
+| `daily_report_hour` | Hour of day (0-23, default -1 disables) for a fixed daily report; same shape as a health report plus the RSS peak since the previous daily report | `8` |
 | `include_log_lines` | Crash-log lines to attach (0~50); logs may hold secrets, so 0 by default | `0` |
 | `threshold_rss_percent` | Alert when RSS reaches this share of the limit (0~100, default 0 = off) | `80` |
 | `threshold_offline_min` | Alert when an instance stays away from online this long (0~1440, default 0 = off) | `5` |
@@ -398,7 +399,9 @@ Platforms without a preset go through `webhook`: it posts one stable JSON body (
 | `threshold` | Memory pressure, an instance stuck away from online, restart storms |
 | `report` | The periodic health report |
 
-A report covers the fields selected by `report_fields`: instance status, RSS, CPU percent (needs two samples, so the first report after a daemon restart omits it), consecutive abnormal restarts, uptime and ports. `report_interval_min` goes down to 1 — one health report per minute; thresholds and reports share the same once-a-minute evaluation tick.
+A report covers the fields selected by `report_fields`: instance status, RSS, CPU percent (needs two samples, so the first report after a daemon restart omits it), consecutive abnormal restarts, uptime and ports, plus the windowed `peak` (the instance's highest RSS since the previous report — sampled by the memory check, cleared when a report goes out), `disk` (free space on the filesystem holding `~/.bm2`) and system `load` (1-minute load average, one entry per report). `report_interval_min` goes down to 1 — one health report per minute; thresholds and reports share the same once-a-minute evaluation tick.
+
+`daily_report_hour` adds a fixed daily report on top: at the configured hour a report titled daily report goes out, whose instance lines carry the RSS peak since the previous daily report (a window independent of the health-report peaks). It fires at most once per calendar day.
 
 ### Delivery behaviour
 

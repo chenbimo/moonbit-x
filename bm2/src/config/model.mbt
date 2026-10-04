@@ -63,6 +63,7 @@ pub(all) struct NotifyConfig {
   events : Array[String]
   report_interval_min : Int
   report_fields : Array[String]
+  daily_report_hour : Int
   include_log_lines : Int
   threshold_rss_percent : Int
   threshold_offline_min : Int
@@ -86,6 +87,7 @@ pub fn NotifyConfig::disabled() -> NotifyConfig {
     events: [],
     report_interval_min: 0,
     report_fields: ["status", "rss", "restarts", "uptime", "ports"],
+    daily_report_hour: -1,
     include_log_lines: 0,
     threshold_rss_percent: 0,
     threshold_offline_min: 0,
