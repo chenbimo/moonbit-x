@@ -8,18 +8,6 @@ Multi-platform notification library for MoonBit: seven platform presets (Feishu 
 moon add chensuiyi/notify
 ```
 
-## Platforms
-
-| preset | Platform | Transport |
-| --- | --- | --- |
-| `feishu` | Feishu | HTTPS (optional signing) |
-| `dingtalk` | DingTalk | HTTPS (HMAC signing) |
-| `wecom` | WeCom | HTTPS |
-| `slack` | Slack | HTTPS |
-| `discord` | Discord | HTTPS |
-| `webhook` | Generic webhook | HTTPS (Bearer) |
-| `email` | Email | SMTP (STARTTLS / smtps) |
-
 ## Features
 
 - Seven platform presets behind one `deliver` call — switch by config, not code
@@ -33,6 +21,18 @@ moon add chensuiyi/notify
 - Daemon lifecycle alerts: crash / memory-limit / threshold notices to chat groups
 - `bm2 notify`: prove a project's endpoints and credentials work without waiting for a real incident
 - Periodic health reports: per-instance status lines with rss / cpu / uptime
+
+## Platforms
+
+| preset | Platform | Transport |
+| --- | --- | --- |
+| `feishu` | Feishu | HTTPS (optional signing) |
+| `dingtalk` | DingTalk | HTTPS (HMAC signing) |
+| `wecom` | WeCom | HTTPS |
+| `slack` | Slack | HTTPS |
+| `discord` | Discord | HTTPS |
+| `webhook` | Generic webhook | HTTPS (Bearer) |
+| `email` | Email | SMTP (STARTTLS / smtps) |
 
 ## Usage
 
@@ -62,13 +62,14 @@ let report = engine.pump(now) // call once per tick
 | `Engine::pump(now)` | Deliver the queue head, returns `remaining / outcome / owner` |
 | `Engine::dropped()` / `Engine::queued()` | Drop and queue counters |
 
-Design contract: credential-free failures (reasons never contain url / secret / password), caller-injected time, no logging no disk.
+Rate-limit windows are per-`owner` and counted at enqueue time — a failing endpoint cannot bypass the limit.
 
 ## Dependencies
 
 - `moonbitlang/async@0.22.4` (HTTP / SMTP / timeouts)
 - `moonbitlang/x@0.5.1` (HMAC signing)
-- `moonbitlang/moon_config` — no; deps are `chensuiyi/dateku@0.1.0` + `chensuiyi/fndash@0.1.0`
+- `chensuiyi/dateku@0.1.0` (timestamps)
+- `chensuiyi/fndash@0.1.0` (JSON assembly)
 
 ## Author
 
@@ -79,11 +80,31 @@ Design contract: credential-free failures (reasons never contain url / secret / 
 MIT
 
 <details>
-<summary><strong>中文说明</strong></summary>
+<summary><strong>中文文档</strong></summary>
 
 # chensuiyi/notify
 
 MoonBit 多平台通知库:七种平台预设(飞书/钉钉/企业微信/Slack/Discord/通用 webhook/SMTP 邮件)、HTTP 与 SMTP 投递、可选的去重/限流/重试引擎。
+
+## 安装
+
+```bash
+moon add chensuiyi/notify
+```
+
+## 功能
+
+- 七种平台预设behind 一个 `deliver` 调用——按配置切换,不改代码
+- 可选引擎:去重 → 限流 → 队列 → 失败退避重试
+- **凭据不泄露**——失败原因永不包含 url / secret / password,可放心打进日志
+- **时间由调用方注入**——库不读时钟,完全可测
+- **不写日志不落盘**——只投递并返回结构化结果
+
+## 场景
+
+- 守护进程生命周期告警:崩溃 / 内存超限 / 阈值通知发到聊天群
+- `bm2 notify`:不等真实事故即可验证通知端点与凭据可用
+- 周期健康报告:每实例状态行含 rss / cpu / uptime
 
 ## 平台
 
@@ -96,12 +117,6 @@ MoonBit 多平台通知库:七种平台预设(飞书/钉钉/企业微信/Slack/D
 | `discord` | Discord | HTTPS |
 | `webhook` | 通用 webhook | HTTPS(Bearer) |
 | `email` | 邮件 | SMTP(STARTTLS / smtps) |
-
-## 设计约定
-
-- **凭据不泄露**——失败原因永不包含 url / secret / password,可放心打进日志
-- **时间由调用方注入**——库不读时钟,完全可测
-- **不写日志不落盘**——只投递并返回结构化结果
 
 ## 用法
 
@@ -138,5 +153,13 @@ let report = engine.pump(now) // 每 tick 调用一次
 - `moonbitlang/async@0.22.4`(HTTP / SMTP / 超时)
 - `moonbitlang/x@0.5.1`(HMAC 签名)
 - `chensuiyi/dateku@0.1.0` + `chensuiyi/fndash@0.1.0`
+
+## 作者
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo))
+
+## 协议
+
+MIT
 
 </details>

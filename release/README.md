@@ -2,14 +2,20 @@
 
 moon.work multi-module release orchestration: bump versions → dependency order → pin sync → `moon publish` per member. Run from the workspace root in WSL.
 
+## Install
+
+The tool is not published to mooncakes in this workflow — build and install locally:
+
+```bash
+bash scripts/release.sh --help    # rebuilds itself when stale
+# or
+moon build --target native release
+cp _build/native/debug/build/chensuiyi/release/release.exe ~/.local/bin/release
+```
+
 ## Usage
 
 Daily driver is `bash scripts/release.sh` (rebuilds the tool when needed). Equivalent direct form:
-
-```text
-moon build --target native release
-./_build/native/debug/build/chensuiyi/release/release.exe [args...]
-```
 
 ```text
 bash scripts/release.sh --dry-run              # plan only
@@ -30,16 +36,12 @@ bash scripts/release.sh --minor notify         # publish one member
 
 By default every member except the tool itself is published; default bump is `--patch`.
 
-## Author
-
-**陈随易** ([@chenbimo](https://github.com/chenbimo)) · [mooncakes: chensuiyi](https://mooncakes.io/user/chensuiyi)
-
 ## License
 
 MIT
 
 <details>
-<summary><strong>中文说明</strong></summary>
+<summary><strong>中文文档</strong></summary>
 
 # chensuiyi/release
 
@@ -52,4 +54,31 @@ moon.work 多模块发布编排工具。
 - 前置质量门:发布前先跑各成员测试(bm2 为 `bash bm2/scripts/verify.sh`)
 - 需要 `moon` 与 mooncakes 账号令牌(首次发布前 `moon login`)
 
+## 用法
+
+日常通过 `bash scripts/release.sh` 使用(按需自动构建);该脚本等价于:
+
+```text
+moon build --target native release
+./_build/native/debug/build/chensuiyi/release/release.exe [args...]
+```
+
+```text
+bash scripts/release.sh --dry-run              # 只看计划 / plan only
+bash scripts/release.sh --patch                # 全成员发布 / publish all
+bash scripts/release.sh --minor notify         # 只发指定成员 / one member
+```
+
+- 模块名匹配成员目录名或模块名;不带 = 全部(工具自身除外)
+- 发布前提:`moon` 可用且已登录 mooncakes 账号(首次发布前 `moon login`)
+- 前置质量门:发布前先跑各成员的测试(bm2 为 `bash bm2/scripts/verify.sh`)
+
 </details>
+
+## 作者
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo))
+
+## 协议
+
+MIT
