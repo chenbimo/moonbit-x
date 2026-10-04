@@ -179,3 +179,228 @@ pub fn url_encode(text : String) -> String {
   }
   buf.to_string()
 }
+
+///|
+/// True when the text is empty or made only of spaces/tabs.
+pub fn is_blank(text : String) -> Bool {
+  for c in text {
+    let value = c.to_int()
+    if value != 0x20 && value != 0x09 {
+      return false
+    }
+  }
+  true
+}
+
+///|
+/// Drop `prefix` from the start of `text`; `None` when it is not there.
+pub fn remove_prefix(text : String, prefix : String) -> String? {
+  if prefix.is_empty() || !text.has_prefix(prefix) {
+    None
+  } else {
+    Some(text[prefix.length():].to_owned())
+  }
+}
+
+///|
+/// Drop `suffix` from the end of `text`; `None` when it is not there.
+pub fn remove_suffix(text : String, suffix : String) -> String? {
+  if suffix.is_empty() || !text.has_suffix(suffix) {
+    None
+  } else {
+    Some(text[:text.length() - suffix.length()].to_owned())
+  }
+}
+
+///|
+/// Pad `text` with `pad` (default `"0"`) on the left up to `target_len`.
+/// Longer text is returned unchanged; an empty `pad` returns `text`.
+pub fn pad_start(
+  text : String,
+  target_len : Int,
+  pad? : String = "0",
+) -> String {
+  if text.length() >= target_len || pad.is_empty() {
+    return text
+  }
+  let fill = pad.repeat(
+    (target_len - text.length() + pad.length() - 1) / pad.length(),
+  )
+  fill[:target_len - text.length()].to_owned() + text
+}
+
+///|
+/// Pad `text` with `pad` (default `" "`) on the right up to `target_len`.
+pub fn pad_end(text : String, target_len : Int, pad? : String = " ") -> String {
+  if text.length() >= target_len || pad.is_empty() {
+    return text
+  }
+  let fill = pad.repeat(
+    (target_len - text.length() + pad.length() - 1) / pad.length(),
+  )
+  text + fill[:target_len - text.length()].to_owned()
+}
+
+///|
+/// Lowercase a Latin string (A-Z only; other chars unchanged).
+pub fn to_lower(text : String) -> String {
+  let buf = StringBuilder()
+  for c in text {
+    let value = c.to_int()
+    if value >= 65 && value <= 90 {
+      buf.write_char((value + 32).unsafe_to_char())
+    } else {
+      buf.write_char(c)
+    }
+  }
+  buf.to_string()
+}
+
+///|
+/// Uppercase a Latin string (a-z only; other chars unchanged).
+pub fn to_upper(text : String) -> String {
+  let buf = StringBuilder()
+  for c in text {
+    let value = c.to_int()
+    if value >= 97 && value <= 122 {
+      buf.write_char((value - 32).unsafe_to_char())
+    } else {
+      buf.write_char(c)
+    }
+  }
+  buf.to_string()
+}
+
+///|
+/// Split `text` on `sep` into owned strings. `sep` must be non-empty.
+pub fn split(text : String, sep : String) -> Array[String] {
+  let parts : Array[String] = []
+  if sep.is_empty() {
+    return parts
+  }
+  let mut start = 0
+  let mut index = 0
+  let limit = text.length() - sep.length()
+  while index <= limit {
+    if text[index:index + sep.length()].to_owned() == sep {
+      parts.push(text[start:index].to_owned())
+      index += sep.length()
+      start = index
+    } else {
+      index += 1
+    }
+  }
+  parts.push(text[start:].to_owned())
+  parts
+}
+
+///|
+/// Split into consecutive chunks of at most `size` items. A non-positive
+/// `size` yields an empty array.
+pub fn[T] chunk(items : Array[T], size : Int) -> Array[Array[T]] {
+  let chunks : Array[Array[T]] = []
+  if size <= 0 {
+    return chunks
+  }
+  let mut current : Array[T] = []
+  for item in items {
+    current.push(item)
+    if current.length() == size {
+      chunks.push(current)
+      current = []
+    }
+  }
+  if !current.is_empty() {
+    chunks.push(current)
+  }
+  chunks
+}
+
+///|
+/// First occurrence of each value, order preserved.
+pub fn[T : Eq] uniq(items : Array[T]) -> Array[T] {
+  let seen : Array[T] = []
+  let result : Array[T] = []
+  for item in items {
+    let mut found = false
+    for s in seen {
+      if s == item {
+        found = true
+        break
+      }
+    }
+    if !found {
+      seen.push(item)
+      result.push(item)
+    }
+  }
+  result
+}
+
+///|
+/// Integers from `start` up to (excluding) `end` by `step` (default 1).
+/// A non-positive `step` yields an empty array.
+pub fn range(start : Int, end : Int, step? : Int = 1) -> Array[Int] {
+  let values : Array[Int] = []
+  if step <= 0 {
+    return values
+  }
+  let mut current = start
+  while current < end {
+    values.push(current)
+    current += step
+  }
+  values
+}
+
+///|
+/// Clamp `n` into `[lo, hi]`.
+pub fn clamp_int(n : Int, lo : Int, hi : Int) -> Int {
+  if n < lo {
+    lo
+  } else if n > hi {
+    hi
+  } else {
+    n
+  }
+}
+
+///|
+/// Bytes as uppercase hex (`"4142"`).
+pub fn hex_encode(bytes : Bytes) -> String {
+  let buf = StringBuilder()
+  for byte in bytes {
+    buf.write_string(hex_pair(byte.to_int()))
+  }
+  buf.to_string()
+}
+
+///|
+/// Decode an even-length uppercase/lowercase hex string into bytes;
+/// `None` on odd length or any non-hex character.
+pub fn hex_decode(text : String) -> Bytes? {
+  if text.length() % 2 != 0 {
+    return None
+  }
+  let nibbles : Array[Int] = []
+  for c in text {
+    let value = c.to_int()
+    let digit = if value >= 48 && value <= 57 {
+      value - 48
+    } else if value >= 65 && value <= 70 {
+      value - 55
+    } else if value >= 97 && value <= 102 {
+      value - 87
+    } else {
+      return None
+    }
+    nibbles.push(digit)
+  }
+  let bytes : Array[Byte] = []
+  let mut index = 0
+  while index < nibbles.length() {
+    bytes.push((nibbles[index] * 16 + nibbles[index + 1]).to_byte())
+    index += 2
+  }
+  Some(Bytes::from_array(bytes))
+}
