@@ -1,49 +1,78 @@
 # chensuiyi/fsx
 
-Durable file operations for MoonBit: atomic write (fsync + rename + parent-dir fsync), `mkdir_p`, append, chmod, log rotation (rename / copytruncate), flock, /proc-friendly small reads. Linux native.
-
-## Install
-
-```bash
-moon add chensuiyi/fsx
-```
-
-## API
-
-| Interface | Description |
-| --- | --- |
-| `write_atomic(path, data)` | Write `.tmp` → fsync → atomic rename; parent dir fsynced too |
-| `mkdir_p(path, mode?)` | Idempotent recursive mkdir |
-| `append_file` / `chmod` / `unlink` / `file_size` | Append / tighten mode / remove / size |
-| `rotate` / `copytruncate` | Log rotation, ten generations kept |
-| `lock_exclusive(path)` | Non-blocking flock (CLOEXEC), returns fd |
-| `read_small(path, cap?)` | Read to EOF, capped — works on /proc virtual files |
-
-Every write step is bounded by a poll deadline (5s) — a full disk or a stalled target never hangs the caller. Errors are `FileError::Failed(op~, errno~)`.
+Durable file operations for MoonBit: atomic write (fsync + rename + parent-dir fsync), `mkdir_p`, append, chmod, log rotation (rename / copytruncate), flock, and /proc-friendly small reads. Linux native.
 
 <details>
-<summary><strong>中文说明</strong></summary>
+<summary><strong>中文文档</strong></summary>
 
-# chensuiyi/fsx
+## 简介
 
-持久化文件操作:原子写(fsync + rename + 父目录 fsync)、`mkdir_p`、追加、chmod、日志轮转(rename / copytruncate 双模式)、flock、/proc 友好的小文件读取。Linux native。
+崩溃安全的文件操作库:原子写(fsync + rename + 父目录 fsync)、`mkdir_p`、追加、chmod、日志轮转(rename / copytruncate 双模式)、flock、/proc 友好的小文件读取。Linux native。
+
+## 功能
+
+- 每一步写都由 poll 限时(5s),满盘/卡死目标不会挂住调用方
+- `mkdir_p` 幂等;错误统一 `FileError::Failed(op~, errno~)`
+- 运行时零依赖
+
+## 场景
+
+- 守护进程状态文件:掉电后不丢、不半截
+- 日志轮转:自己写的日志用 rename,进程持有 fd 的用 copytruncate
+- 单实例锁:非阻塞 flock,CLOEXEC 防子进程继承
+
+</details>
+
+## Features
+
+- Atomic write: `.tmp` → fsync → rename, parent directory fsynced as well
+- Every write step bounded by a poll deadline (5s) — a full disk or stalled target never hangs the caller
+- Log rotation in two modes: rename (self-written logs) and copytruncate (fd-held logs)
+- Non-blocking flock with CLOEXEC — spawned children never inherit the lock
+- Idempotent `mkdir_p`; uniform `FileError::Failed(op~, errno~)` errors
+- Zero runtime dependencies
+
+## Scenarios
+
+- Daemon state files that must survive power loss
+- Singleton locks for long-running processes
+- Reading /proc virtual files (`/proc/<pid>/status`, `environ`, `cmdline`)
 
 ## API
 
-| 接口 | 说明 |
+| Function | Description |
 | --- | --- |
-| `write_atomic(path, data)` | 写 `.tmp` → fsync → 原子改名;父目录一并 fsync |
-| `mkdir_p(path, mode?)` | 幂等递归建目录 |
-| `append_file` / `chmod` / `unlink` / `file_size` | 追加 / 收紧权限 / 删除 / 大小 |
-| `rotate` / `copytruncate` | 轮转(保留 10 代)/ 原地截断复制 |
-| `lock_exclusive(path)` | 非阻塞 flock(CLOEXEC),返回 fd |
-| `read_small(path, cap?)` | 循环读到 EOF 或 cap,可用于 /proc 虚拟文件 |
+| `write_atomic(path, data)` | Write `.tmp` → fsync → atomic rename; parent dir fsynced |
+| `mkdir_p(path, mode?)` | Idempotent recursive mkdir |
+| `append_file(path, data)` | Poll-bounded append |
+| `chmod(path, mode)` | Tighten mode of an existing path |
+| `unlink(path)` | Remove |
+| `file_size(path)` | Size in bytes, `None` when missing |
+| `rotate(path)` | Shift chain, rename to `.1`, drop `.10` |
+| `copytruncate(path)` | Copy to `.1`, truncate in place |
+| `lock_exclusive(path)` | Non-blocking flock, returns fd |
+| `read_small(path, cap?)` | Read to EOF, capped |
 
-- 每一步写都由 poll 限时(5s),满盘/卡死目标不会挂住调用方
-- 错误统一 `FileError::Failed(op~, errno~)`,带操作名与 errno
-- 运行时零依赖
+<details>
+<summary><strong>用法示例 / usage</strong></summary>
+
+```moonbit
+// Crash-safe state write
+@fsx.mkdir_p("/var/lib/myapp")
+@fsx.write_atomic("/var/lib/myapp/state.json", b"{\"pid\":42}")
+
+// Singleton lock
+let lock_fd = @fsx.lock_exclusive("/var/run/myapp.lock")
+
+// /proc read
+let cmdline = @fsx.read_small("/proc/self/cmdline")
+```
 
 </details>
+
+## Author
+
+**陈随易** ([@chenbimo](https://github.com/chenbimo)) · [mooncakes: chensuiyi](https://mooncakes.io/user/chensuiyi)
 
 ## License
 
