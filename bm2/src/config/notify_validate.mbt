@@ -96,7 +96,12 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
   if config.daily_report_hour >= 0 {
     check_int_range(config.daily_report_hour, 0, 23, "notify.daily_report_hour")
   }
-  check_int_range(config.threshold_rss_percent, 0, 100, "notify.threshold_rss_percent")
+  check_int_range(
+    config.threshold_rss_percent,
+    0,
+    100,
+    "notify.threshold_rss_percent",
+  )
   check_int_range(
     config.threshold_offline_min,
     0,
