@@ -137,7 +137,9 @@ test "instance_env_blob carries only whitelist and reserved vars" {
       key = part.to_owned()
       break
     }
-    assert_true(allowed.contains(key))
+    // Whitelist + reserved, plus every BM2_* variable the caller environment
+    // carries (credential pass-through by design).
+    assert_true(allowed.contains(key) || key.has_prefix("BM2_"))
   }
   // whitelist (PATH/HOME/TMPDIR, present in the test environment) + 5
   // reserved vars; at least 5 entries must exist.
