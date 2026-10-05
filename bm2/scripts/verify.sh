@@ -1,6 +1,14 @@
 #!/bin/bash
 # Run from the Remote-WSL terminal: bash scripts/verify.sh
+# Default gate: fmt / check / unit tests / native build.
+# Pass --with-e2e to also run the end-to-end suite — that full gate belongs
+# to the release flow (scripts/release.sh), not to everyday commits.
 set -euo pipefail
+
+WITH_E2E=0
+for arg in "$@"; do
+  [ "$arg" = "--with-e2e" ] && WITH_E2E=1
+done
 
 # The push hook may arrive from Windows git through WSL as any user, so
 # $HOME cannot be trusted to hold the toolchain: probe the well-known
@@ -27,11 +35,7 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # from corrupting each other's caches. moon.work 模式下 --target-dir 指到哪,
 # 全 workspace 的产物就整体落在哪,所以两棵树都在大仓根,成员目录内不落产物。
 build_dir="$(dirname "$root")/_build-wsl"
-# mktemp does not create parent directories, and a fresh checkout has no build
-# dir yet (moon build runs only later in this script).
 mkdir -p "$build_dir"
-bin_dir=$(mktemp -d "$build_dir/bm2-e2e-bin.XXXXXX")
-trap 'rm -rf "$bin_dir"' EXIT
 
 cd "$root"
 
@@ -63,8 +67,14 @@ moon check $pkgs --target-dir "$build_dir" --target native --deny-warn --warn-li
 moon test -p chensuiyi/bm2 --target-dir "$build_dir" --target native
 moon build "$root/src/cmd/bm2" "$root/src/cmd/bm2d" --target-dir "$build_dir" --target native
 
-cp "$build_dir/native/debug/build/chensuiyi/bm2/cmd/bm2/bm2.exe" "$bin_dir/bm2"
-cp "$build_dir/native/debug/build/chensuiyi/bm2/cmd/bm2d/bm2d.exe" "$bin_dir/bm2d"
-chmod +x "$bin_dir/bm2" "$bin_dir/bm2d"
-
-BM2_BIN_DIR="$bin_dir" bash scripts/e2e/run.sh
+if [ "$WITH_E2E" = "1" ]; then
+  # mktemp does not create parent directories; the build above made the tree.
+  bin_dir=$(mktemp -d "$build_dir/bm2-e2e-bin.XXXXXX")
+  trap 'rm -rf "$bin_dir"' EXIT
+  cp "$build_dir/native/debug/build/chensuiyi/bm2/cmd/bm2/bm2.exe" "$bin_dir/bm2"
+  cp "$build_dir/native/debug/build/chensuiyi/bm2/cmd/bm2d/bm2d.exe" "$bin_dir/bm2d"
+  chmod +x "$bin_dir/bm2" "$bin_dir/bm2d"
+  BM2_BIN_DIR="$bin_dir" bash scripts/e2e/run.sh
+else
+  echo "verify: fmt/check/unit/build ok (e2e skipped; release runs it via --with-e2e)"
+fi

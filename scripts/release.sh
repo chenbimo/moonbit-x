@@ -14,5 +14,14 @@ if ! command -v moon > /dev/null 2>&1; then
 fi
 
 cd "$(dirname "$0")/.."
+
+# Releasing bm2 runs its full gate (fmt/check/unit/build + e2e) first.
+case " $* " in
+  *" bm2 "*)
+    echo "release: bm2 完整验证(含 e2e)..."
+    bash bm2/scripts/verify.sh --with-e2e
+    ;;
+esac
+
 moon build --target-dir _build-wsl --target native release
 exec ./_build-wsl/native/debug/build/chensuiyi/release/release.exe "$@"
