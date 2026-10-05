@@ -8,9 +8,9 @@
 ///|
 let notifyKeys : Array[String] = [
   "enabled", "lang", "timeout_ms", "dedupe_window_s", "max_per_minute", "queue_size",
-  "events", "threshold_rss_percent", "threshold_offline_min",
-  "threshold_restarts", "start_timeout_ms", "threshold_disk_mb", "threshold_storm",
-  "mail_url", "mail_from", "mail_username", "mail_password", "target",
+  "events", "threshold_rss_percent", "threshold_offline_min", "threshold_restarts",
+  "start_timeout_ms", "threshold_disk_mb", "threshold_storm", "mail_url", "mail_from",
+  "mail_username", "mail_password", "target",
 ]
 
 ///|
