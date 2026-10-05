@@ -138,7 +138,10 @@ pub fn Supervisor::notify_project(
 
 ///|
 /// Daemon started / reloaded: tell each project's own targets.
-pub fn Supervisor::notify_daemon_started(self : Supervisor, app_name : String) -> Unit {
+pub fn Supervisor::notify_daemon_started(
+  self : Supervisor,
+  app_name : String,
+) -> Unit {
   let policy = self.project_policy(app_name)
   let (title, body) = render_msg(
     policy.lang,
@@ -447,7 +450,10 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
 /// Periodic targets: every `[[notify.target]]` with an `interval` gets its
 /// content rendered and delivered on its own schedule, straight through
 /// deliver_all — no event queue, no dedupe, no rate limit.
-pub async fn Supervisor::check_schedules(self : Supervisor, now : UInt64) -> Unit {
+pub async fn Supervisor::check_schedules(
+  self : Supervisor,
+  now : UInt64,
+) -> Unit {
   for app_name in self.app_names() {
     let policy = self.project_policy(app_name)
     if !policy.enabled {
@@ -475,7 +481,7 @@ pub async fn Supervisor::check_schedules(self : Supervisor, now : UInt64) -> Uni
       }
       self.schedule_last[key] = now
       let stats = target.content == Some("stats")
-      let message = self.build_report(app_name, policy, now, stats=stats)
+      let message = self.build_report(app_name, policy, now, stats~)
       let results = @notify.deliver_all(
         lib_targets([target], policy),
         message,

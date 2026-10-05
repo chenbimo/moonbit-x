@@ -55,7 +55,12 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
     10080,
     "notify.report_interval_min",
   )
-  check_int_range(config.threshold_rss_percent, 0, 100, "notify.threshold_rss_percent")
+  check_int_range(
+    config.threshold_rss_percent,
+    0,
+    100,
+    "notify.threshold_rss_percent",
+  )
   check_int_range(
     config.threshold_offline_min,
     0,
@@ -122,8 +127,7 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
                 "\{ctx}.email.to must not be empty",
               )
             }
-          None =>
-            raise ConfigError::InvalidField("\{ctx}.email.to is required")
+          None => raise ConfigError::InvalidField("\{ctx}.email.to is required")
         }
         match config.mail_url {
           Some(_) => ()
@@ -133,12 +137,10 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
             )
         }
       }
-      "feishu" | "dingtalk" | "webhook" => {
+      "feishu" | "dingtalk" | "webhook" =>
         check_scheme(target.url, ["http://", "https://"], "\{ctx}.url")
-      }
-      "wecom" | "slack" | "discord" => {
+      "wecom" | "slack" | "discord" =>
         check_scheme(target.url, ["http://", "https://"], "\{ctx}.url")
-      }
       _ =>
         raise ConfigError::InvalidField(
           "\{ctx}.platform has unknown value \{target.platform}",

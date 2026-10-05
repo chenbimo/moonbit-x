@@ -17,8 +17,8 @@ let notifyKeys : Array[String] = [
 /// Routing fields plus the seven platform objects. Exactly one platform
 /// object per target.
 let targetKeys : Array[String] = [
-  "name", "label", "events", "min_level", "interval", "content",
-  "feishu", "dingtalk", "wecom", "slack", "discord", "webhook", "email",
+  "name", "label", "events", "min_level", "interval", "content", "feishu", "dingtalk",
+  "wecom", "slack", "discord", "webhook", "email",
 ]
 
 ///|
@@ -218,9 +218,7 @@ fn parse_targets(
           )
         }
         if interval is None && content is Some(_) {
-          raise ConfigError::InvalidField(
-            "\{ctx}.content requires interval",
-          )
+          raise ConfigError::InvalidField("\{ctx}.content requires interval")
         }
         match content {
           Some(value) =>
@@ -264,7 +262,9 @@ fn parse_targets(
             Some(recipients)
           }
           Some(_) =>
-            raise ConfigError::InvalidField("\{ctx}.\{found}.to must be an array")
+            raise ConfigError::InvalidField(
+              "\{ctx}.\{found}.to must be an array",
+            )
         }
         targets.push({
           name: req_string(fields, "name", ctx),
@@ -274,7 +274,11 @@ fn parse_targets(
           interval,
           content,
           platform: found,
-          url: if found == "email" { "" } else { req_string(platform_table, "url", ctx) },
+          url: if found == "email" {
+            ""
+          } else {
+            req_string(platform_table, "url", ctx)
+          },
           secret: opt_string_opt(platform_table, "secret", ctx),
           format: opt_string_opt(platform_table, "format", ctx),
           mail_to,
@@ -282,7 +286,8 @@ fn parse_targets(
       }
       targets
     }
-    Some(_) => raise ConfigError::InvalidField("target must be an array of tables")
+    Some(_) =>
+      raise ConfigError::InvalidField("target must be an array of tables")
   }
 }
 
@@ -303,7 +308,10 @@ fn digits_to_int(text : StringView) -> Int? {
 ///|
 /// Parse an interval: "Nm" (1~60 minutes), "Nh" (1~24 hours), "daily H"
 /// (H 0~23), "weekly W H" (W 1~7, Monday first), "monthly D H" (D 1~28).
-pub fn parse_interval(text : String, ctx : String) -> Interval raise ConfigError {
+pub fn parse_interval(
+  text : String,
+  ctx : String,
+) -> Interval raise ConfigError {
   let parts = text.split(" ").collect()
   match parts.length() {
     1 => {

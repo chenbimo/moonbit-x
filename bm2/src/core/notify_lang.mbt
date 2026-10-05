@@ -132,10 +132,7 @@ fn render_en(msg : Bm2Msg) -> (String, String) {
       ("bm2 health report · \{app}", if empty { "No instances." } else { "" })
     StatsReport(app) => ("bm2 statistics · \{app}", "")
     DaemonAdopted(online) =>
-      (
-        "bm2d started",
-        "Adopted this project: \{online} online instance(s).",
-      )
+      ("bm2d started", "Adopted this project: \{online} online instance(s).")
   }
 }
 

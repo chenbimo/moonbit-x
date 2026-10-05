@@ -201,13 +201,29 @@ fn lib_target(
   {
     name: target.name,
     preset: target.platform,
-    url: if is_email { mail_url.unwrap_or("") } else { target.url },
+    url: if is_email {
+      mail_url.unwrap_or("")
+    } else {
+      target.url
+    },
     secret: target.secret,
     format: target.format,
-    from: if is_email { mail_from } else { None },
+    from: if is_email {
+      mail_from
+    } else {
+      None
+    },
     to: target.mail_to,
-    username: if is_email { mail_username } else { None },
-    password: if is_email { mail_password } else { None },
+    username: if is_email {
+      mail_username
+    } else {
+      None
+    },
+    password: if is_email {
+      mail_password
+    } else {
+      None
+    },
   }
 }
 

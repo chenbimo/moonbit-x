@@ -34,6 +34,7 @@ pub extend Config with Debug::{to_repr}
 /// and authentication; the remaining fields are the endpoint and its
 /// credentials. url/secret/password/username are sensitive: they are never
 /// echoed in errors, events or CLI output.
+
 ///|
 /// Schedule of a periodic target, parsed from the `interval` string.
 pub(all) enum Interval {
