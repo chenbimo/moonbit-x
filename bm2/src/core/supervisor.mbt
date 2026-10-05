@@ -61,6 +61,7 @@ pub struct Supervisor {
   mut last_notify_check_ms : UInt64
   /// Periodic target key (app/name) -> when it last fired.
   schedule_last : Map[String, UInt64]
+  mut last_schedule_check_ms : UInt64
   /// Per project: rolling stats window since the last stats push
   /// (peak sampled RSS in kB, automatic restarts).
   stats_window : Map[String, StatsWindow]
@@ -153,6 +154,7 @@ pub fn Supervisor::new(
     notify: Notifier::new(state_dir, @subproc.hostname()),
     last_notify_check_ms: 0UL,
     schedule_last: Map([]),
+    last_schedule_check_ms: 0UL,
     stats_window: Map([]),
     last_daily_report_day: Map([]),
     storm_hits: Map([]),
@@ -551,9 +553,11 @@ pub async fn Supervisor::tick(self : Supervisor) -> Unit {
   self.check_pending()
   self.check_removals()
   self.check_uptime_resets()
-  // Notifications come last: events recorded by this pass are queued, and one
-  // queued message is delivered per pass (bounded by the notify timeout).
+  // Notifications come last: events recorded by this pass are queued, cron
+  // schedules are evaluated, and one queued message is delivered per pass
+  // (bounded by the notify timeout).
   self.check_notify(now)
+  self.check_schedules(now)
   ignore(self.notify.pump(now))
 }
 

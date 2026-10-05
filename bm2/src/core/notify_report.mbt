@@ -453,6 +453,13 @@ pub async fn Supervisor::check_schedules(
   self : Supervisor,
   now : UInt64,
 ) -> Unit {
+  // Cron granularity is minutes; evaluate once per minute, not on every
+  // 50 ms tick — otherwise a matching minute fires once per tick.
+  if now >= self.last_schedule_check_ms &&
+    now - self.last_schedule_check_ms < NOTIFY_CHECK_INTERVAL_MS {
+    return
+  }
+  self.last_schedule_check_ms = now
   for app_name in self.app_names() {
     let policy = self.project_policy(app_name)
     if !policy.enabled {
