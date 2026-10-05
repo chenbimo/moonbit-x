@@ -152,7 +152,16 @@ test "per-report subscriptions and level floors are honoured" {
   )
   let quiet = wb_report(min_level="error")
   let crashing = wb_report(events=["crash"])
-  let periodic = wb_report(cron=@config.CronSpec::{ minutes: [0], hours: [8], days_of_month: [1], months: [1], days_of_week: [0, 1, 2, 3, 4, 5, 6] }, template="health")
+  let periodic = wb_report(
+    cron=@config.CronSpec::{
+      minutes: [0],
+      hours: [8],
+      days_of_month: [1],
+      months: [1],
+      days_of_week: [0, 1, 2, 3, 4, 5, 6],
+    },
+    template="health",
+  )
   assert_false(wants(quiet, config, wb_message("warn", 1000UL)))
   assert_true(wants(quiet, config, wb_message("error", 1000UL)))
   assert_false(wants(crashing, config, wb_message("warn", 1000UL)))

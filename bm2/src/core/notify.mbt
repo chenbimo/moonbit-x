@@ -248,7 +248,9 @@ fn lib_endpoints(
 
 ///|
 /// Flatten the endpoints of several reports into one delivery list.
-fn flatten_endpoints(reports : Array[@config.NotifyReport]) -> Array[@config.NotifyEndpoint] {
+fn flatten_endpoints(
+  reports : Array[@config.NotifyReport],
+) -> Array[@config.NotifyEndpoint] {
   let out = []
   for report in reports {
     for endpoint in report.targets {

@@ -162,9 +162,9 @@ test "notify enforces per-platform endpoint rules" {
     ).contains("two platform objects"),
   )
   assert_true(
-    notify_error(
-      "[notify]\n\n[[notify.report]]\nname = \"a\"\n",
-    ).contains("must configure exactly one platform object"),
+    notify_error("[notify]\n\n[[notify.report]]\nname = \"a\"\n").contains(
+      "must configure exactly one platform object",
+    ),
   )
 }
 
@@ -346,10 +346,7 @@ test "new threshold fields parse, default off and validate their ranges" {
 
 ///|
 test "expand_with resolves placeholders through the lookup" {
-  let vars = Map([
-    ("BM2_URL", "https://hook.example/abc"),
-    ("BM2_PATH", "x"),
-  ])
+  let vars = Map([("BM2_URL", "https://hook.example/abc"), ("BM2_PATH", "x")])
   let lookup = fn(name : String) -> String? { vars.get(name) }
   assert_eq(
     @config.expand_with("${BM2_URL}", "t", lookup),
@@ -357,9 +354,7 @@ test "expand_with resolves placeholders through the lookup" {
   )
   assert_eq(
     @config.expand_with(
-      "https://hook.example/${BM2_PATH}?key=${BM2_URL}",
-      "t",
-      lookup,
+      "https://hook.example/${BM2_PATH}?key=${BM2_URL}", "t", lookup,
     ),
     "https://hook.example/x?key=https://hook.example/abc",
   )
@@ -378,9 +373,9 @@ test "expand_with resolves placeholders through the lookup" {
 ///|
 test "expand_with rejects unset variables and bad names" {
   fn expand_error(value : String) -> String {
-    try @config.expand_with(value, "t", fn(_name : String) -> String? {
-      None
-    }) catch {
+    try
+      @config.expand_with(value, "t", fn(_name : String) -> String? { None })
+    catch {
       e => e.to_string()
     } noraise {
       _ => "no-error"
@@ -392,9 +387,11 @@ test "expand_with rejects unset variables and bad names" {
   assert_false(message.contains("https://"))
   // Names must look like environment variables.
   fn rejects(value : String) -> Bool {
-    try @config.expand_with(value, "t", fn(_name : String) -> String? {
-      Some("x")
-    }) catch {
+    try
+      @config.expand_with(value, "t", fn(_name : String) -> String? {
+        Some("x")
+      })
+    catch {
       _ => true
     } noraise {
       _ => false

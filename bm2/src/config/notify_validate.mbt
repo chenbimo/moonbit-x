@@ -43,7 +43,12 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
   check_int_range(config.dedupe_window_s, 0, 604800, "notify.dedupe_window_s")
   check_int_range(config.max_per_minute, 0, 6000, "notify.max_per_minute")
   check_int_range(config.queue_size, 1, 4096, "notify.queue_size")
-  check_int_range(config.threshold_rss_percent, 0, 100, "notify.threshold_rss_percent")
+  check_int_range(
+    config.threshold_rss_percent,
+    0,
+    100,
+    "notify.threshold_rss_percent",
+  )
   check_int_range(
     config.threshold_offline_min,
     0,
@@ -67,13 +72,12 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
   check_members(config.events, notifyEvents, "notify.events")
   // The mail channel must exist before any email endpoint can use it.
   match config.mail_url {
-    Some(url) => {
+    Some(url) =>
       if !url.has_prefix("smtp://") && !url.has_prefix("smtps://") {
         raise ConfigError::InvalidField(
           "notify.mail_url must start with smtp:// or smtps://",
         )
       }
-    }
     None => ()
   }
   let seen : Map[String, Unit] = Map([])

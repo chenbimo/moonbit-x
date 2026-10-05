@@ -488,7 +488,10 @@ pub async fn Supervisor::check_schedules(
 /// Cron match against local-time parts: (year, month, day, weekday, hour,
 /// minute). Every restricted field must contain the current value; the
 /// parser guarantees day-of-month and day-of-week are not both restricted.
-fn cron_matches(spec : @config.CronSpec, parts : (Int, Int, Int, Int, Int, Int)) -> Bool {
+fn cron_matches(
+  spec : @config.CronSpec,
+  parts : (Int, Int, Int, Int, Int, Int),
+) -> Bool {
   let (_, month, day, weekday, hour, minute) = parts
   spec.minutes.contains(minute) &&
   spec.hours.contains(hour) &&

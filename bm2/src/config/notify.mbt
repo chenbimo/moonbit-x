@@ -89,8 +89,8 @@ fn opt_string_array_opt(
 let notifyKeys : Array[String] = [
   "enabled", "lang", "timeout_ms", "dedupe_window_s", "max_per_minute", "queue_size",
   "events", "threshold_rss_percent", "threshold_offline_min", "threshold_restarts",
-  "start_timeout_ms", "threshold_disk_mb", "threshold_storm",
-  "mail_url", "mail_from", "mail_username", "mail_password", "report",
+  "start_timeout_ms", "threshold_disk_mb", "threshold_storm", "mail_url", "mail_from",
+  "mail_username", "mail_password", "report",
 ]
 
 ///|
@@ -235,7 +235,8 @@ fn parse_reports(
       }
       reports
     }
-    Some(_) => raise ConfigError::InvalidField("report must be an array of tables")
+    Some(_) =>
+      raise ConfigError::InvalidField("report must be an array of tables")
   }
 }
 
@@ -252,13 +253,9 @@ fn parse_endpoints(
       for index, item in items {
         let endpoint_ctx = "\{ctx}.target[\{index}]"
         guard item is @toml.TomlTable(endpoint) else {
-          raise ConfigError::InvalidField(
-            "\{endpoint_ctx} must be a table",
-          )
+          raise ConfigError::InvalidField("\{endpoint_ctx} must be a table")
         }
-        let endpoint_keys = [
-          "platform", "url", "secret", "format", "to",
-        ]
+        let endpoint_keys = ["platform", "url", "secret", "format", "to"]
         reject_unknown_keys(endpoint, endpoint_keys, endpoint_ctx)
         let platform = req_string(endpoint, "platform", endpoint_ctx)
         if !platforms.contains(platform) {
@@ -345,7 +342,7 @@ fn cron_field(
   let values : Array[Int] = []
   for part in text.split(",") {
     if part == "*" {
-      for v in base..=max {
+      for v in base..<=max {
         values.push(v)
       }
       continue
@@ -380,9 +377,7 @@ fn cron_field(
           )
         }
       None =>
-        raise ConfigError::InvalidField(
-          "\{ctx} cron \{what} has invalid value",
-        )
+        raise ConfigError::InvalidField("\{ctx} cron \{what} has invalid value")
     }
   }
   values
@@ -415,11 +410,5 @@ pub fn parse_cron(text : String, ctx : String) -> CronSpec raise ConfigError {
   // in tm_wday convention (0=Sunday..6=Saturday).
   let weekdays_raw = cron_field(parts[4], 0, 7, ctx, "day-of-week")
   let weekdays = weekdays_raw.map(fn(w) { w % 7 })
-  {
-    minutes,
-    hours,
-    days_of_month: days,
-    months,
-    days_of_week: weekdays,
-  }
+  { minutes, hours, days_of_month: days, months, days_of_week: weekdays, }
 }
