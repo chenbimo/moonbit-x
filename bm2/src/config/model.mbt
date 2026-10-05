@@ -36,39 +36,48 @@ pub extend Config with Debug::{to_repr}
 /// echoed in errors, events or CLI output.
 
 ///|
-/// Schedule of a periodic target, parsed from the `interval` string.
-pub(all) enum Interval {
-  /// Every N minutes, 1~60.
-  Minutes(Int)
-  /// Every N hours, 1~24.
-  Hours(Int)
-  /// Every day at the given hour (0~23).
-  Daily(Int)
-  /// Every week on weekday (1=Monday..7=Sunday) at hour (0~23).
-  Weekly(Int, Int)
-  /// Every month on day (1~28) at hour (0~23).
-  Monthly(Int, Int)
+/// A parsed standard five-field cron: minute, hour, day-of-month, month,
+/// day-of-week. Every field is the full expanded set of matching values
+/// (`*` expands to the whole range). Day-of-month and day-of-week may not
+/// both be restricted — that combination is rejected at parse time.
+pub(all) struct CronSpec {
+  minutes : Array[Int]
+  hours : Array[Int]
+  days_of_month : Array[Int]
+  months : Array[Int]
+  days_of_week : Array[Int]
 } derive(Debug, Eq)
 
 ///|
-pub extend Interval with Debug::{to_repr}
+pub extend CronSpec with Debug::{to_repr}
 
 ///|
-pub extend Interval with Eq::{not_equal, equal}
+pub extend CronSpec with Eq::{not_equal, equal}
 
 ///|
-pub(all) struct NotifyTarget {
+/// One entry of `[[notify.report]]`. Either instant (has `events`, fires on
+/// events) or periodic (has `cron`, fires on schedule) — never both.
+pub(all) struct NotifyReport {
   name : String
   label : String?
-  /// Event targets only: which events this address receives.
+  /// Instant only: which events this report receives (within the gate).
   events : Array[String]?
   min_level : String?
-  /// Periodic targets only: schedule + which preset content to render.
-  interval : Interval?
-  content : String?
-  /// Resolved platform: one of the seven known keys.
+  /// Periodic only: schedule + which preset template to render.
+  cron : CronSpec?
+  cron_text : String?
+  template : String?
+  /// Delivery endpoints of this report.
+  targets : Array[NotifyEndpoint]
+} derive(Debug)
+
+///|
+pub extend NotifyReport with Debug::{to_repr}
+
+///|
+/// One delivery endpoint inside a report: a platform plus its connection.
+pub(all) struct NotifyEndpoint {
   platform : String
-  /// Platform endpoint; empty for email (the mail channel owns it).
   url : String
   secret : String?
   format : String?
@@ -77,7 +86,7 @@ pub(all) struct NotifyTarget {
 } derive(Debug)
 
 ///|
-pub extend NotifyTarget with Debug::{to_repr}
+pub extend NotifyEndpoint with Debug::{to_repr}
 
 ///|
 /// Which events leave this project, and where they go. Lives inside the project
@@ -104,7 +113,7 @@ pub(all) struct NotifyConfig {
   start_timeout_ms : Int
   threshold_disk_mb : Int
   threshold_storm : Int
-  targets : Array[NotifyTarget]
+  reports : Array[NotifyReport]
 } derive(Debug)
 
 ///|
@@ -132,7 +141,7 @@ pub fn NotifyConfig::disabled() -> NotifyConfig {
     start_timeout_ms: 0,
     threshold_disk_mb: 0,
     threshold_storm: 0,
-    targets: [],
+    reports: [],
   }
 }
 

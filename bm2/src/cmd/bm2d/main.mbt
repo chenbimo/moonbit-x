@@ -327,20 +327,31 @@ async fn cmd_notify(
     loaded => loaded
   }
   let policy = config.notify
-  if !policy.enabled || policy.targets.length() == 0 {
+  let mut has_endpoint = false
+  for report in policy.reports {
+    if report.targets.length() > 0 {
+      has_endpoint = true
+    }
+  }
+  if !policy.enabled || !has_endpoint {
     return @core.Response::error(
       "project " +
       config.name +
       " has no notifications enabled: set [notify].enabled = true and add at least one [[notify.target]] in bm2.toml",
     )
   }
+  let endpoints = []
+  for report in policy.reports {
+    for endpoint in report.targets {
+      endpoints.push(endpoint)
+    }
+  }
   let results = sv
     .notifier()
     .deliver_now(
-      policy.targets,
+      endpoints,
       policy,
       policy.timeout_ms,
-      req.notify_target,
       @core.test_message(@dateku.now_ms(), lang=policy.lang),
     )
   if results.length() == 0 {

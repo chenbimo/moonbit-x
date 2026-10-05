@@ -4,27 +4,22 @@
 /// engine itself are covered by the chensuiyi/notify suite.
 
 ///|
-fn wb_target(
-  platform : String,
-  url : String,
-  secret? : String,
-  format? : String,
+fn wb_report(
   events? : Array[String],
   min_level? : String,
-  mail_to? : Array[String],
-) -> @config.NotifyTarget {
+  cron? : @config.CronSpec,
+  template? : String,
+  targets? : Array[@config.NotifyEndpoint],
+) -> @config.NotifyReport {
   {
     name: "t",
-    platform,
-    url,
-    secret,
-    format,
+    label: None,
     events,
     min_level,
-    label: None,
-    interval: None,
-    content: None,
-    mail_to,
+    cron,
+    cron_text: None,
+    template,
+    targets: targets.unwrap_or([]),
   }
 }
 
@@ -146,37 +141,24 @@ test "rate limiting and queue overflow are counted, never unbounded" {
 }
 
 ///|
-test "per-target subscriptions and level floors are honoured" {
+test "per-report subscriptions and level floors are honoured" {
   let config = wb_policy(
     (
       #|[notify]
       #|enabled = true
-      #|events = ["crash", "report"]
+      #|events = ["crash"]
       #|
     ),
   )
-  let quiet = wb_target("webhook", "http://127.0.0.1:9/a", min_level="error")
-  let only_reports = wb_target("webhook", "http://127.0.0.1:9/b", events=[
-    "report",
-  ])
-  let opted_out = wb_target("webhook", "http://127.0.0.1:9/c")
+  let quiet = wb_report(min_level="error")
+  let crashing = wb_report(events=["crash"])
+  let periodic = wb_report(cron=@config.CronSpec::{ minutes: [0], hours: [8], days_of_month: [1], months: [1], days_of_week: [0, 1, 2, 3, 4, 5, 6] }, template="health")
   assert_false(wants(quiet, config, wb_message("warn", 1000UL)))
   assert_true(wants(quiet, config, wb_message("error", 1000UL)))
-  assert_false(wants(only_reports, config, wb_message("warn", 1000UL)))
-  assert_true(
-    wants(
-      only_reports,
-      config,
-      @notify.Message::new("report", "info", "r", "b", "s", 1000UL),
-    ),
-  )
-  assert_false(
-    wants(
-      opted_out,
-      config,
-      @notify.Message::new("report", "info", "r", "b", "s", 1000UL),
-    ),
-  )
+  assert_false(wants(crashing, config, wb_message("warn", 1000UL)))
+  assert_true(wants(crashing, config, wb_message("error", 1000UL)))
+  // Periodic reports never take events, whatever their own subscription.
+  assert_false(wants(periodic, config, wb_message("error", 1000UL)))
 }
 
 ///|
@@ -197,11 +179,16 @@ async test "a failed delivery reports a reason without the credential" {
     ),
   )
   let notifier = wb_notifier("fail")
+  let endpoints = []
+  for report in policy.reports {
+    for endpoint in report.targets {
+      endpoints.push(endpoint)
+    }
+  }
   let results = notifier.deliver_now(
-    policy.targets,
+    endpoints,
     policy,
     policy.timeout_ms,
-    None,
     @notify.Message::new("crash", "warn", "t", "b", "s", 1000UL),
   )
   assert_eq(results.length(), 1)

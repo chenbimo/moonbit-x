@@ -444,31 +444,22 @@ pub async fn Supervisor::check_schedules(
     if !policy.enabled {
       continue
     }
-    for target in policy.targets {
-      let interval = match target.interval {
-        Some(interval) => interval
+    for report in policy.reports {
+      let cron = match report.cron {
+        Some(cron) => cron
         None => continue
       }
-      let key = app_name + "/" + target.name
-      let last = match self.schedule_last.get(key) {
-        Some(ms) => ms
-        None => 0UL
+      let parts = match @subproc.local_parts(now) {
+        Some(parts) => parts
+        None => continue
       }
-      let due = match interval {
-        Minutes(n) => now >= last && now - last >= (n * 60000).to_uint64()
-        Hours(n) => now >= last && now - last >= (n * 3600000).to_uint64()
-        Daily(hour) => schedule_daily_hit(now, last, hour)
-        Weekly(weekday, hour) => schedule_weekly_hit(now, last, weekday, hour)
-        Monthly(day, hour) => schedule_monthly_hit(now, last, day, hour)
-      }
-      if !due {
+      if !cron_matches(cron, parts) {
         continue
       }
-      self.schedule_last[key] = now
-      let stats = target.content == Some("stats")
+      let stats = report.template == Some("stats")
       let message = self.build_report(app_name, policy, now, stats~)
       let results = @notify.deliver_all(
-        lib_targets([target], policy),
+        lib_endpoints(report.targets, policy),
         message,
         policy.timeout_ms,
         self.notify.ctx,
@@ -494,73 +485,16 @@ pub async fn Supervisor::check_schedules(
 }
 
 ///|
-/// The local day key (yyyymmdd in the system timezone) of a moment.
-fn local_day_key(now : UInt64) -> Int {
-  match @subproc.local_parts(now) {
-    Some((year, month, day, _, _, _)) => year * 10000 + month * 100 + day
-    None => 0
-  }
-}
-
-///|
-/// The local month key (yyyymm) of a moment.
-fn local_month_key(now : UInt64) -> Int {
-  match @subproc.local_parts(now) {
-    Some((year, month, _, _, _, _)) => year * 100 + month
-    None => 0
-  }
-}
-
-///|
-/// Daily hit: the local hour matches and this local day has not sent yet.
-fn schedule_daily_hit(now : UInt64, last : UInt64, hour : Int) -> Bool {
-  match @subproc.local_parts(now) {
-    Some((_, _, _, _, local_hour, _)) => {
-      let day_now = local_day_key(now)
-      let day_last = local_day_key(last)
-      local_hour == hour && day_now != day_last
-    }
-    None => false
-  }
-}
-
-///|
-/// Weekly hit: the local weekday matches and this local day has not sent.
-fn schedule_weekly_hit(
-  now : UInt64,
-  last : UInt64,
-  weekday : Int,
-  hour : Int,
-) -> Bool {
-  match @subproc.local_parts(now) {
-    Some((_, _, _, wday, local_hour, _)) => {
-      // cfg weekday 1~7 = Monday..Sunday; tm_wday 0=Sunday..6.
-      let weekday_ok = wday == weekday % 7
-      let day_now = local_day_key(now)
-      let day_last = local_day_key(last)
-      weekday_ok && local_hour == hour && day_now != day_last
-    }
-    None => false
-  }
-}
-
-///|
-/// Monthly hit: the local day-of-month matches and this local month has
-/// not sent yet.
-fn schedule_monthly_hit(
-  now : UInt64,
-  last : UInt64,
-  day : Int,
-  hour : Int,
-) -> Bool {
-  match @subproc.local_parts(now) {
-    Some((_, _, local_day, _, local_hour, _)) => {
-      let month_now = local_month_key(now)
-      let month_last = local_month_key(last)
-      local_day == day && local_hour == hour && month_now != month_last
-    }
-    None => false
-  }
+/// Cron match against local-time parts: (year, month, day, weekday, hour,
+/// minute). Every restricted field must contain the current value; the
+/// parser guarantees day-of-month and day-of-week are not both restricted.
+fn cron_matches(spec : @config.CronSpec, parts : (Int, Int, Int, Int, Int, Int)) -> Bool {
+  let (_, month, day, weekday, hour, minute) = parts
+  spec.minutes.contains(minute) &&
+  spec.hours.contains(hour) &&
+  spec.days_of_month.contains(day) &&
+  spec.months.contains(month) &&
+  spec.days_of_week.contains(weekday)
 }
 
 ///|

@@ -6,47 +6,6 @@
 /// at the tree level before any of this runs.
 
 ///|
-let notifyKeys : Array[String] = [
-  "enabled", "lang", "timeout_ms", "dedupe_window_s", "max_per_minute", "queue_size",
-  "events", "threshold_rss_percent", "threshold_offline_min", "threshold_restarts",
-  "start_timeout_ms", "threshold_disk_mb", "threshold_storm", "mail_url", "mail_from",
-  "mail_username", "mail_password", "target",
-]
-
-///|
-/// Routing fields plus the seven platform objects. Exactly one platform
-/// object per target.
-let targetKeys : Array[String] = [
-  "name", "label", "events", "min_level", "interval", "content", "feishu", "dingtalk",
-  "wecom", "slack", "discord", "webhook", "email",
-]
-
-///|
-/// Every platform bm2 can render. Keeping this a closed set is what makes
-/// the platform object key safe to trust: no user-supplied shape reaches
-/// the payload.
-let platforms : Array[String] = [
-  "feishu", "dingtalk", "wecom", "slack", "discord", "webhook", "email",
-]
-
-///|
-let notifyEvents : Array[String] = [
-  "crash", "errored", "memory_limit", "reuseport_missing", "lifecycle", "daemon",
-  "threshold", "oom_kill", "disk_pressure", "start_timeout",
-]
-
-///|
-let notifyLevels : Array[String] = ["info", "warn", "error"]
-
-///|
-let notifyFormats : Array[String] = ["text", "markdown", "card"]
-
-///|
-/// Preset report contents for periodic targets. The set grows over time;
-/// the shape of the table does not.
-let notifyContents : Array[String] = ["health", "stats"]
-
-///|
 fn opt_bool(
   table : Map[String, @toml.TomlValue],
   key : String,
@@ -56,6 +15,20 @@ fn opt_bool(
   match opt_bool_opt(table, key, ctx) {
     Some(value) => value
     None => default
+  }
+}
+
+///|
+fn opt_bool_opt(
+  table : Map[String, @toml.TomlValue],
+  key : String,
+  ctx : String,
+) -> Bool? raise ConfigError {
+  match table.get(key) {
+    None => None
+    Some(@toml.TomlBoolean(value)) => Some(value)
+    Some(_) =>
+      raise ConfigError::InvalidField("\{ctx}.\{key} must be a boolean")
   }
 }
 
@@ -113,18 +86,44 @@ fn opt_string_array_opt(
 }
 
 ///|
-fn opt_bool_opt(
-  table : Map[String, @toml.TomlValue],
-  key : String,
-  ctx : String,
-) -> Bool? raise ConfigError {
-  match table.get(key) {
-    None => None
-    Some(@toml.TomlBoolean(value)) => Some(value)
-    Some(_) =>
-      raise ConfigError::InvalidField("\{ctx}.\{key} must be a boolean")
-  }
-}
+let notifyKeys : Array[String] = [
+  "enabled", "lang", "timeout_ms", "dedupe_window_s", "max_per_minute", "queue_size",
+  "events", "threshold_rss_percent", "threshold_offline_min", "threshold_restarts",
+  "start_timeout_ms", "threshold_disk_mb", "threshold_storm",
+  "mail_url", "mail_from", "mail_username", "mail_password", "report",
+]
+
+///|
+/// Report-level keys plus the seven platform objects. Exactly one platform
+/// object per endpoint.
+let reportKeys : Array[String] = [
+  "name", "label", "events", "min_level", "cron", "template", "target",
+]
+
+///|
+/// Every platform bm2 can render. Keeping this a closed set is what makes
+/// the platform field safe to trust: no user-supplied shape reaches the
+/// payload.
+let platforms : Array[String] = [
+  "feishu", "dingtalk", "wecom", "slack", "discord", "webhook", "email",
+]
+
+///|
+let notifyEvents : Array[String] = [
+  "crash", "errored", "memory_limit", "reuseport_missing", "lifecycle", "daemon",
+  "threshold", "oom_kill", "disk_pressure", "start_timeout",
+]
+
+///|
+let notifyLevels : Array[String] = ["info", "warn", "error"]
+
+///|
+let notifyFormats : Array[String] = ["text", "markdown", "card"]
+
+///|
+/// Preset report templates for periodic reports. The set grows over time;
+/// the shape of the table does not.
+let notifyTemplates : Array[String] = ["health", "stats"]
 
 ///|
 /// Parse the `[notify]` table of a project config.
@@ -150,7 +149,7 @@ pub fn parse_notify_section(
     mail_from: opt_string_opt(table, "mail_from", "notify"),
     mail_username: opt_string_opt(table, "mail_username", "notify"),
     mail_password: opt_string_opt(table, "mail_password", "notify"),
-    targets: parse_targets(table),
+    reports: parse_reports(table),
   }
   validate_notify(config)
   config
@@ -173,87 +172,124 @@ fn opt_lang(table : Map[String, @toml.TomlValue]) -> String raise ConfigError {
 }
 
 ///|
-fn parse_targets(
+/// Parse the `[[notify.report]]` array: one entry is either instant
+/// (events/min_level) or periodic (cron/template), plus its endpoints.
+fn parse_reports(
   table : Map[String, @toml.TomlValue],
-) -> Array[NotifyTarget] raise ConfigError {
-  match table.get("target") {
+) -> Array[NotifyReport] raise ConfigError {
+  match table.get("report") {
     None => []
     Some(@toml.TomlArray(items)) => {
-      let targets = []
+      let reports = []
       for index, item in items {
-        let ctx = "notify.target[\{index}]"
+        let ctx = "notify.report[\{index}]"
         guard item is @toml.TomlTable(fields) else {
           raise ConfigError::InvalidField("\{ctx} must be a table")
         }
-        reject_unknown_keys(fields, targetKeys, ctx)
-        // Exactly one platform object per target: its key names the platform
-        // and its table carries the connection config.
-        let mut found = ""
-        for platform in platforms {
-          if fields.contains(platform) {
-            if found != "" {
-              raise ConfigError::InvalidField(
-                "\{ctx} has two platform objects (\{found}, \{platform}); one target is one platform",
-              )
-            }
-            found = platform
-          }
-        }
-        if found == "" {
-          raise ConfigError::InvalidField(
-            "\{ctx} must configure exactly one platform object",
-          )
-        }
-        let interval = match opt_string_opt(fields, "interval", ctx) {
-          Some(text) => Some(parse_interval(text, ctx))
+        reject_unknown_keys(fields, reportKeys, ctx)
+        let cron = match opt_string_opt(fields, "cron", ctx) {
+          Some(text) => Some(parse_cron(text, ctx))
           None => None
         }
-        let content = opt_string_opt(fields, "content", ctx)
-        // interval and content are a pair; events routing is event-target
-        // only.
-        if interval is Some(_) && content is None {
+        let template = opt_string_opt(fields, "template", ctx)
+        // cron and template are a pair; events routing is instant-only.
+        if cron is Some(_) && template is None {
           raise ConfigError::InvalidField(
-            "\{ctx}.interval requires content (health / stats)",
+            "\{ctx}.cron requires template (health / stats)",
           )
         }
-        if interval is None && content is Some(_) {
-          raise ConfigError::InvalidField("\{ctx}.content requires interval")
+        if cron is None && template is Some(_) {
+          raise ConfigError::InvalidField("\{ctx}.template requires cron")
         }
-        match content {
+        match template {
           Some(value) =>
-            if !notifyContents.contains(value) {
+            if !notifyTemplates.contains(value) {
               raise ConfigError::InvalidField(
-                "\{ctx}.content has unknown value \{value}",
+                "\{ctx}.template has unknown value \{value}",
               )
             }
           None => ()
         }
-        if interval is Some(_) {
+        if cron is Some(_) {
           if fields.contains("events") {
             raise ConfigError::InvalidField(
-              "\{ctx}.events is not used by a periodic target",
+              "\{ctx}.events is not used by a periodic report",
             )
           }
           if fields.contains("min_level") {
             raise ConfigError::InvalidField(
-              "\{ctx}.min_level is not used by a periodic target",
+              "\{ctx}.min_level is not used by a periodic report",
             )
           }
         }
-        // The platform object itself.
-        guard fields.get(found) is Some(@toml.TomlTable(platform_table)) else {
-          raise ConfigError::InvalidField("\{ctx}.\{found} must be a table")
+        reports.push({
+          name: req_string(fields, "name", ctx),
+          label: opt_string_opt(fields, "label", ctx),
+          events: opt_string_array_opt(fields, "events", ctx),
+          min_level: opt_string_opt(fields, "min_level", ctx),
+          cron,
+          cron_text: opt_string_opt(fields, "cron", ctx),
+          template,
+          targets: parse_endpoints(fields, ctx),
+        })
+      }
+      reports
+    }
+    Some(_) => raise ConfigError::InvalidField("report must be an array of tables")
+  }
+}
+
+///|
+/// Endpoints of one report: `[[notify.report.target]]` elements.
+fn parse_endpoints(
+  fields : Map[String, @toml.TomlValue],
+  ctx : String,
+) -> Array[NotifyEndpoint] raise ConfigError {
+  match fields.get("target") {
+    None => []
+    Some(@toml.TomlArray(items)) => {
+      let endpoints = []
+      for index, item in items {
+        let endpoint_ctx = "\{ctx}.target[\{index}]"
+        guard item is @toml.TomlTable(endpoint) else {
+          raise ConfigError::InvalidField(
+            "\{endpoint_ctx} must be a table",
+          )
         }
-        let platform_keys : Array[String] = ["url", "secret", "format", "to"]
-        reject_unknown_keys(platform_table, platform_keys, "\{ctx}.\{found}")
-        let mail_to = match platform_table.get("to") {
+        let endpoint_keys = [
+          "platform", "url", "secret", "format", "to",
+        ]
+        reject_unknown_keys(endpoint, endpoint_keys, endpoint_ctx)
+        let platform = req_string(endpoint, "platform", endpoint_ctx)
+        if !platforms.contains(platform) {
+          raise ConfigError::InvalidField(
+            "\{endpoint_ctx}.platform has unknown value \{platform}",
+          )
+        }
+        let is_email = platform == "email"
+        let url = if is_email {
+          "" // the mail channel owns the SMTP endpoint
+        } else {
+          req_string(endpoint, "url", endpoint_ctx)
+        }
+        let secret = opt_string_opt(endpoint, "secret", endpoint_ctx)
+        match opt_string_opt(endpoint, "format", endpoint_ctx) {
+          Some(format) =>
+            if !notifyFormats.contains(format) {
+              raise ConfigError::InvalidField(
+                "\{endpoint_ctx}.format has unknown value \{format}",
+              )
+            }
+          None => ()
+        }
+        let mail_to = match endpoint.get("to") {
           None => None
           Some(@toml.TomlArray(items)) => {
             let recipients = []
             for recipient in items {
               guard recipient is @toml.TomlString(text) else {
                 raise ConfigError::InvalidField(
-                  "\{ctx}.\{found}.to must be strings",
+                  "\{endpoint_ctx}.to must be strings",
                 )
               }
               recipients.push(text)
@@ -262,31 +298,23 @@ fn parse_targets(
           }
           Some(_) =>
             raise ConfigError::InvalidField(
-              "\{ctx}.\{found}.to must be an array",
+              "\{endpoint_ctx}.to must be an array",
             )
         }
-        targets.push({
-          name: req_string(fields, "name", ctx),
-          label: opt_string_opt(fields, "label", ctx),
-          events: opt_string_array_opt(fields, "events", ctx),
-          min_level: opt_string_opt(fields, "min_level", ctx),
-          interval,
-          content,
-          platform: found,
-          url: if found == "email" {
-            ""
-          } else {
-            req_string(platform_table, "url", ctx)
-          },
-          secret: opt_string_opt(platform_table, "secret", ctx),
-          format: opt_string_opt(platform_table, "format", ctx),
+        endpoints.push({
+          platform,
+          url,
+          secret,
+          format: opt_string_opt(endpoint, "format", endpoint_ctx),
           mail_to,
         })
       }
-      targets
+      endpoints
     }
     Some(_) =>
-      raise ConfigError::InvalidField("target must be an array of tables")
+      raise ConfigError::InvalidField(
+        "\{ctx}.target must be an array of tables",
+      )
   }
 }
 
@@ -305,136 +333,93 @@ fn digits_to_int(text : StringView) -> Int? {
 }
 
 ///|
-/// Parse an interval: "Nm" (1~60 minutes), "Nh" (1~24 hours), "daily H"
-/// (H 0~23), "weekly W H" (W 1~7, Monday first), "monthly D H" (D 1~28).
-pub fn parse_interval(
-  text : String,
+/// Expand one cron field: `*` (whole range), `*/n` (stepped), a number, or
+/// a comma list of numbers. `base` and `max` define the field's range.
+fn cron_field(
+  text : StringView,
+  base : Int,
+  max : Int,
   ctx : String,
-) -> Interval raise ConfigError {
-  let parts = text.split(" ").collect()
-  match parts.length() {
-    1 => {
-      let spec = parts[0]
-      guard spec.length() >= 2 else {
-        raise ConfigError::InvalidField("\{ctx}.interval has invalid value")
+  what : String,
+) -> Array[Int] raise ConfigError {
+  let values : Array[Int] = []
+  for part in text.split(",") {
+    if part == "*" {
+      for v in base..=max {
+        values.push(v)
       }
-      let unit = spec[spec.length() - 1:].to_owned()
-      let num_text = spec[:spec.length() - 1].to_owned()
-      guard num_text.length() > 0 else {
-        raise ConfigError::InvalidField("\{ctx}.interval has invalid value")
+      continue
+    }
+    if part.has_prefix("*/") {
+      let step = match digits_to_int(part[2:]) {
+        Some(v) => v
+        None =>
+          raise ConfigError::InvalidField(
+            "\{ctx} cron \{what} has invalid step",
+          )
       }
-      let mut digits = true
-      for c in num_text {
-        let v = c.to_int()
-        if v < 48 || v > 57 {
-          digits = false
-          break
+      guard step >= 1 else {
+        raise ConfigError::InvalidField(
+          "\{ctx} cron \{what} step must be at least 1",
+        )
+      }
+      let mut v = base
+      while v <= max {
+        values.push(v)
+        v += step
+      }
+      continue
+    }
+    match digits_to_int(part) {
+      Some(v) =>
+        if v >= base && v <= max {
+          values.push(v)
+        } else {
+          raise ConfigError::InvalidField(
+            "\{ctx} cron \{what} value \{v} must be between \{base} and \{max}",
+          )
         }
-      }
-      guard digits else {
-        raise ConfigError::InvalidField("\{ctx}.interval has invalid value")
-      }
-      let num = match digits_to_int(num_text) {
-        Some(v) => v
-        None =>
-          raise ConfigError::InvalidField("\{ctx}.interval has invalid value")
-      }
-      match unit {
-        "m" =>
-          if num >= 1 && num <= 60 {
-            Minutes(num)
-          } else {
-            raise ConfigError::InvalidField(
-              "\{ctx}.interval minutes must be between 1 and 60",
-            )
-          }
-        "h" =>
-          if num >= 1 && num <= 24 {
-            Hours(num)
-          } else {
-            raise ConfigError::InvalidField(
-              "\{ctx}.interval hours must be between 1 and 24",
-            )
-          }
-        _ =>
-          raise ConfigError::InvalidField(
-            "\{ctx}.interval must be like \"5m\", \"2h\", \"daily 8\", \"weekly 1 8\" or \"monthly 1 8\"",
-          )
-      }
+      None =>
+        raise ConfigError::InvalidField(
+          "\{ctx} cron \{what} has invalid value",
+        )
     }
-    2 => {
-      let hour = parse_hour(parts[1], ctx)
-      match parts[0].to_owned() {
-        "daily" => Daily(hour)
-        _ =>
-          raise ConfigError::InvalidField(
-            "\{ctx}.interval must be like \"daily 8\"",
-          )
-      }
-    }
-    3 => {
-      let hour = parse_hour(parts[2], ctx)
-      let day = match digits_to_int(parts[1]) {
-        Some(v) => v
-        None =>
-          raise ConfigError::InvalidField("\{ctx}.interval has invalid value")
-      }
-      match parts[0].to_owned() {
-        "weekly" =>
-          if day >= 1 && day <= 7 {
-            Weekly(day, hour)
-          } else {
-            raise ConfigError::InvalidField(
-              "\{ctx}.interval weekday must be between 1 and 7",
-            )
-          }
-        "monthly" =>
-          if day >= 1 && day <= 28 {
-            Monthly(day, hour)
-          } else {
-            raise ConfigError::InvalidField(
-              "\{ctx}.interval day must be between 1 and 28",
-            )
-          }
-        _ =>
-          raise ConfigError::InvalidField(
-            "\{ctx}.interval must be like \"weekly 1 8\" or \"monthly 1 8\"",
-          )
-      }
-    }
-    _ =>
-      raise ConfigError::InvalidField(
-        "\{ctx}.interval must be like \"5m\", \"2h\", \"daily 8\", \"weekly 1 8\" or \"monthly 1 8\"",
-      )
   }
+  values
 }
 
 ///|
-/// The hour part of "daily H" / "weekly W H" / "monthly D H": digits 0~23.
-fn parse_hour(text : StringView, ctx : String) -> Int raise ConfigError {
-  guard text.length() > 0 else {
-    raise ConfigError::InvalidField("\{ctx}.interval has invalid value")
-  }
-  let mut digits = true
-  for c in text {
-    let v = c.to_int()
-    if v < 48 || v > 57 {
-      digits = false
-      break
-    }
-  }
-  guard digits else {
-    raise ConfigError::InvalidField("\{ctx}.interval has invalid value")
-  }
-  let hour = match digits_to_int(text) {
-    Some(v) => v
-    None => raise ConfigError::InvalidField("\{ctx}.interval has invalid value")
-  }
-  if hour >= 0 && hour <= 23 {
-    hour
-  } else {
+/// Parse a standard five-field cron: minute hour day-of-month month
+/// day-of-week. Supports `*`, `*/n`, numbers and comma lists. Day-of-month
+/// and day-of-week may not both be restricted.
+pub fn parse_cron(text : String, ctx : String) -> CronSpec raise ConfigError {
+  let parts = text.split(" ").collect()
+  guard parts.length() == 5 else {
     raise ConfigError::InvalidField(
-      "\{ctx}.interval hour must be between 0 and 23",
+      "\{ctx}.cron must have five fields (minute hour day month weekday)",
     )
+  }
+  let minutes = cron_field(parts[0], 0, 59, ctx, "minute")
+  let hours = cron_field(parts[1], 0, 23, ctx, "hour")
+  // Both restricted (neither is `*`) is the classic confusing cron case.
+  let dom_limited = !(parts[2] == "*")
+  let dow_limited = !(parts[4] == "*")
+  if dom_limited && dow_limited {
+    raise ConfigError::InvalidField(
+      "\{ctx}.cron restricts both day-of-month and day-of-week; leave one of them as *",
+    )
+  }
+  let days = cron_field(parts[2], 1, 31, ctx, "day-of-month")
+  let months = cron_field(parts[3], 1, 12, ctx, "month")
+  // Weekday: cfg 0 and 7 both mean Sunday, 1~6 = Monday..Saturday; stored
+  // in tm_wday convention (0=Sunday..6=Saturday).
+  let weekdays_raw = cron_field(parts[4], 0, 7, ctx, "day-of-week")
+  let weekdays = weekdays_raw.map(fn(w) { w % 7 })
+  {
+    minutes,
+    hours,
+    days_of_month: days,
+    months,
+    days_of_week: weekdays,
   }
 }

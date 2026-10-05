@@ -164,21 +164,24 @@ fn level_rank(level : String) -> Int {
 }
 
 ///|
-/// Which targets receive one event: the global subscription, the target's own
-/// override, and the level floor.
+/// Which reports receive one event: the global gate, the report's own
+/// override, and the level floor. Periodic reports (cron) never take events.
 fn wants(
-  target : @config.NotifyTarget,
+  report : @config.NotifyReport,
   policy : @config.NotifyConfig,
   msg : @notify.Message,
 ) -> Bool {
-  let events = match target.events {
+  if report.cron is Some(_) {
+    return false
+  }
+  let events = match report.events {
     Some(events) => events
     None => policy.events
   }
   if !events.contains(msg.event) {
     return false
   }
-  match target.min_level {
+  match report.min_level {
     Some(minimum) => level_rank(msg.level) >= level_rank(minimum)
     None => true
   }
@@ -187,33 +190,33 @@ fn wants(
 ///|
 /// bm2.toml 的 target 携带订阅字段(events/min_level/report/label),投递用不到;
 /// 转换为库的中立 Target。
-/// Build a library target from a config target. Email targets borrow the
+/// Build a library target from a config endpoint. Email endpoints borrow the
 /// send capability from the project's mail channel; their own config only
 /// ever carries recipients.
 fn lib_target(
-  target : @config.NotifyTarget,
+  endpoint : @config.NotifyEndpoint,
   mail_url : String?,
   mail_from : String?,
   mail_username : String?,
   mail_password : String?,
 ) -> @notify.Target {
-  let is_email = target.platform == "email"
+  let is_email = endpoint.platform == "email"
   {
-    name: target.name,
-    preset: target.platform,
+    name: endpoint.platform,
+    preset: endpoint.platform,
     url: if is_email {
       mail_url.unwrap_or("")
     } else {
-      target.url
+      endpoint.url
     },
-    secret: target.secret,
-    format: target.format,
+    secret: endpoint.secret,
+    format: endpoint.format,
     from: if is_email {
       mail_from
     } else {
       None
     },
-    to: target.mail_to,
+    to: endpoint.mail_to,
     username: if is_email {
       mail_username
     } else {
@@ -228,19 +231,31 @@ fn lib_target(
 }
 
 ///|
-fn lib_targets(
-  targets : Array[@config.NotifyTarget],
+fn lib_endpoints(
+  endpoints : Array[@config.NotifyEndpoint],
   policy : @config.NotifyConfig,
 ) -> Array[@notify.Target] {
-  targets.map(fn(target) {
+  endpoints.map(fn(endpoint) {
     lib_target(
-      target,
+      endpoint,
       policy.mail_url,
       policy.mail_from,
       policy.mail_username,
       policy.mail_password,
     )
   })
+}
+
+///|
+/// Flatten the endpoints of several reports into one delivery list.
+fn flatten_endpoints(reports : Array[@config.NotifyReport]) -> Array[@config.NotifyEndpoint] {
+  let out = []
+  for report in reports {
+    for endpoint in report.targets {
+      out.push(endpoint)
+    }
+  }
+  out
 }
 
 ///|
@@ -258,8 +273,8 @@ pub fn Notifier::emit(
   if !policy.events.contains(msg.event) {
     return
   }
-  let targets = policy.targets.filter(fn(target) { wants(target, policy, msg) })
-  if targets.length() == 0 {
+  let instant = policy.reports.filter(fn(report) { wants(report, policy, msg) })
+  if instant.length() == 0 {
     return
   }
   let outcome = self.engine.emit(
@@ -267,7 +282,7 @@ pub fn Notifier::emit(
     msg.key,
     app,
     msg,
-    lib_targets(targets, policy),
+    lib_endpoints(flatten_endpoints(instant), policy),
     policy.timeout_ms,
     dedupe_window_s=policy.dedupe_window_s,
     rate_per_minute=policy.max_per_minute,
@@ -326,18 +341,13 @@ pub async fn Notifier::pump(self : Notifier, now : UInt64) -> Int {
 /// operator explicitly asks for a message on a project's targets.
 pub async fn Notifier::deliver_now(
   self : Notifier,
-  targets : Array[@config.NotifyTarget],
+  endpoints : Array[@config.NotifyEndpoint],
   policy : @config.NotifyConfig,
   timeout_ms : Int,
-  target_name : String?,
   msg : @notify.Message,
 ) -> Array[(String, String?)] {
-  let chosen = match target_name {
-    Some(name) => targets.filter(fn(target) { target.name == name })
-    None => targets
-  }
   let results = @notify.deliver_all(
-    lib_targets(chosen, policy),
+    lib_endpoints(endpoints, policy),
     msg,
     timeout_ms,
     self.ctx,

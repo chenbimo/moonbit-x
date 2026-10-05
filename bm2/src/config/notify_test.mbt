@@ -18,39 +18,42 @@ fn notify_error(notify_section : String) -> String raise {
 }
 
 ///|
-test "parses a notify section with several targets" {
+test "parses reports with endpoints, schedules and mail channel" {
   let config = @config.parse(
     project_doc(
       (
         #|[notify]
         #|enabled = true
-        #|timeout_ms = 3000
+        #|lang = "zh"
         #|dedupe_window_s = 60
-        #|max_per_minute = 10
-        #|queue_size = 32
-        #|events = ["crash", "errored", "report"]
-        #|report_fields = ["status", "rss", "cpu"]
-        #|include_log_lines = 5
-        #|threshold_rss_percent = 80
-        #|threshold_offline_min = 5
-        #|threshold_restarts = 3
+        #|events = ["crash", "errored", "lifecycle"]
+        #|report_interval_min = 0
         #|
-        #|[[notify.target]]
-        #|name = "飞书-运维群"
-        #|preset = "feishu"
-        #|url = "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
-        #|secret = "sign-key"
+        #|mail_url = "smtps://smtp.example.com:465"
+        #|mail_from = "bm2@example.com"
         #|
-        #|[[notify.target]]
-        #|name = "邮件-值班"
-        #|preset = "email"
-        #|url = "smtps://smtp.example:465"
-        #|from = "bm2@example.com"
-        #|to = ["ops@example.com", "oncall@example.com"]
-        #|username = "bm2@example.com"
-        #|password = "pw"
+        #|[[notify.report]]
+        #|name = "故障告警"
+        #|events = ["crash", "errored"]
         #|min_level = "warn"
-        #|report = false
+        #|
+        #|[[notify.report.target]]
+        #|platform = "feishu"
+        #|url = "${BM2_TEST_HOOK}"
+        #|secret = "${BM2_TEST_KEY}"
+        #|
+        #|[[notify.report.target]]
+        #|platform = "email"
+        #|to = ["ops@example.com"]
+        #|
+        #|[[notify.report]]
+        #|name = "健康巡检"
+        #|cron = "*/5 * * * *"
+        #|template = "health"
+        #|
+        #|[[notify.report.target]]
+        #|platform = "feishu"
+        #|url = "${BM2_TEST_HOOK}"
         #|
       ),
     ),
@@ -58,28 +61,34 @@ test "parses a notify section with several targets" {
   )
   let notify = config.notify
   assert_true(notify.enabled)
-  assert_eq(notify.timeout_ms, 3000)
-  assert_eq(notify.dedupe_window_s, 60)
+  assert_eq(notify.lang, "zh")
   assert_eq(notify.events.length(), 3)
-  assert_eq(notify.threshold_restarts, 3)
-  assert_eq(notify.targets.length(), 2)
-  assert_eq(notify.targets[0].name, "飞书-运维群")
-  assert_eq(notify.targets[0].secret, Some("sign-key"))
-  assert_eq(notify.targets[1].mail_to.unwrap().length(), 2)
-  assert_eq(notify.targets[1].min_level, Some("warn"))
+  assert_eq(notify.mail_from, Some("bm2@example.com"))
+  assert_eq(notify.reports.length(), 2)
+  let alert = notify.reports[0]
+  assert_eq(alert.name, "故障告警")
+  assert_eq(alert.events, Some(["crash", "errored"]))
+  assert_eq(alert.cron, None)
+  assert_eq(alert.targets.length(), 2)
+  assert_eq(alert.targets[0].platform, "feishu")
+  assert_eq(alert.targets[0].url, "https://hook.example/from-env")
+  assert_eq(alert.targets[0].secret, Some("sign-key"))
+  assert_eq(alert.targets[1].mail_to.unwrap().length(), 1)
+  let poll = notify.reports[1]
+  assert_eq(poll.cron_text, Some("*/5 * * * *"))
+  assert_eq(poll.template, Some("health"))
+  assert_eq(poll.events, None)
 }
 
 ///|
-/// A project that never writes a `[notify]` section reports nothing, which is
-/// the state every existing bm2.toml is in.
 test "a project without a notify section reports nothing" {
   let config = @config.parse(project_doc(""), "/srv/yicode")
   assert_false(config.notify.enabled)
-  assert_eq(config.notify.targets.length(), 0)
+  assert_eq(config.notify.reports.length(), 0)
 }
 
 ///|
-test "notify rejects unknown keys, presets and enum values" {
+test "notify rejects unknown keys, platforms and enum values" {
   assert_true(
     notify_error("[notify]\nenabled = true\nnope = 1\n").contains(
       "unknown field nope",
@@ -87,8 +96,8 @@ test "notify rejects unknown keys, presets and enum values" {
   )
   assert_true(
     notify_error(
-      "[notify]\nenabled = true\n\n[[notify.target]]\nname = \"a\"\npreset = \"carrier-pigeon\"\nurl = \"https://x/y\"\n",
-    ).contains("unknown value carrier-pigeon"),
+      "[notify]\n\n[[notify.report]]\nname = \"a\"\ncron = \"0 8 * * *\"\ntemplate = \"health\"\n\n[[notify.report.target]]\nplatform = \"carrier-pigeon\"\nurl = \"https://x/y\"\n",
+    ).contains("unknown field carrier-pigeon"),
   )
   assert_true(
     notify_error("[notify]\nevents = [\"explode\"]\n").contains(
@@ -97,17 +106,17 @@ test "notify rejects unknown keys, presets and enum values" {
   )
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"a\"\npreset = \"webhook\"\nurl = \"https://x/y\"\nformat = \"pdf\"\n",
+      "[notify]\n\n[[notify.report]]\nname = \"a\"\n\n[[notify.report.target]]\nplatform = \"webhook\"\nurl = \"https://x/y\"\nformat = \"pdf\"\n",
     ).contains("unknown value pdf"),
   )
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"a\"\npreset = \"webhook\"\nurl = \"https://x/y\"\nmin_level = \"fatal\"\n",
-    ).contains("unknown value fatal"),
+      "[notify]\n\n[[notify.report]]\nname = \"a\"\n\n[[notify.report.target]]\nplatform = \"webhook\"\nurl = \"https://x/y\"\nmin_level = \"fatal\"\n",
+    ).contains("unknown field min_level"),
   )
   assert_true(
-    notify_error("[notify]\nreport_fields = [\"latency\"]\n").contains(
-      "unknown value latency",
+    notify_error("[notify]\nthreshold_disk_mb = 1048577\n").contains(
+      "notify.threshold_disk_mb must be between",
     ),
   )
   assert_true(
@@ -123,70 +132,60 @@ test "notify rejects unknown keys, presets and enum values" {
 }
 
 ///|
-test "notify enforces per-preset required fields" {
-  // Web presets need an http(s) endpoint; email needs smtp and an envelope.
+test "notify enforces per-platform endpoint rules" {
+  // Web endpoints need http(s); email endpoints need recipients and a
+  // configured mail channel.
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"a\"\npreset = \"webhook\"\nurl = \"smtp://x:25\"\n",
-    ).contains("must start with one of"),
+      "[notify]\nmail_url = \"smtps://smtp.example.com:465\"\n\n[[notify.report]]\nname = \"a\"\n\n[[notify.report.target]]\nplatform = \"webhook\"\nurl = \"smtp://x:25\"\n",
+    ).contains("must start with"),
   )
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"a\"\npreset = \"email\"\nurl = \"https://x/y\"\nfrom = \"a@b.c\"\nto = [\"d@e.f\"]\n",
-    ).contains("must start with one of"),
+      "[notify]\n\n[[notify.report]]\nname = \"a\"\n\n[[notify.report.target]]\nplatform = \"email\"\nto = [\"d@e.f\"]\n",
+    ).contains("notify has no mail_url"),
   )
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"a\"\npreset = \"email\"\nurl = \"smtps://x:465\"\nto = [\"d@e.f\"]\n",
-    ).contains("from is required"),
+      "[notify]\nmail_url = \"smtps://smtp.example.com:465\"\n\n[[notify.report]]\nname = \"a\"\n\n[[notify.report.target]]\nplatform = \"email\"\n",
+    ).contains("email.to is required"),
   )
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"a\"\npreset = \"email\"\nurl = \"smtps://x:465\"\nfrom = \"a@b.c\"\n",
-    ).contains("to is required"),
+      "[notify]\nmail_url = \"smtps://smtp.example.com:465\"\n\n[[notify.report]]\nname = \"a\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\nto = [\"d@e.f\"]\n",
+    ).contains("unknown field to"),
+  )
+  // Exactly one platform object per endpoint.
+  assert_true(
+    notify_error(
+      "[notify]\n\n[[notify.report]]\nname = \"a\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\n\n[notify.report.target.feishu]\nurl = \"https://x/y\"\n",
+    ).contains("two platform objects"),
   )
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"a\"\npreset = \"pushover\"\nurl = \"https://api.pushover.net/1/messages.json\"\n",
-    ).contains("unknown value pushover"),
-  )
-  // Fields that belong to another preset are rejected rather than ignored.
-  assert_true(
-    notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"a\"\npreset = \"webhook\"\nurl = \"https://x/y\"\npassword = \"pw\"\n",
-    ).contains("password is not used"),
-  )
-  assert_true(
-    notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"a\"\npreset = \"webhook\"\nurl = \"https://x/y\"\nto = [\"d@e.f\"]\n",
-    ).contains("to is not used"),
-  )
-  assert_true(
-    notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"a\"\npreset = \"webhook\"\nurl = \"https://x/y\"\n\n[[notify.target]]\nname = \"a\"\npreset = \"slack\"\nurl = \"https://x/z\"\n",
-    ).contains("duplicate target name"),
+      "[notify]\n\n[[notify.report]]\nname = \"a\"\n",
+    ).contains("must configure exactly one platform object"),
   )
 }
 
 ///|
-/// The CLI and the event log print these messages verbatim, so a rejected
-/// target must be identifiable by index without leaking what it points at or
-/// what it authenticates with.
 test "notify errors never echo a url, secret or password" {
   let message = notify_error(
     (
       #|[notify]
       #|
-      #|[[notify.target]]
+      #|[[notify.report]]
       #|name = "leaky"
-      #|preset = "carrier-pigeon"
+      #|
+      #|[[notify.report.target]]
+      #|platform = "carrier-pigeon"
       #|url = "https://gateway.example/hook?token=URLSECRET"
       #|secret = "TOPSECRET"
-      #|password = "PASSSECRET"
+      #|mail_password = "PASSSECRET"
       #|
     ),
   )
-  assert_true(message.contains("notify.target[0]"))
+  assert_true(message.contains("notify.report[0]"))
   assert_false(message.contains("URLSECRET"))
   assert_false(message.contains("TOPSECRET"))
   assert_false(message.contains("PASSSECRET"))
@@ -194,47 +193,99 @@ test "notify errors never echo a url, secret or password" {
 }
 
 ///|
-test "periodic target requires content and event target rejects it" {
-  // interval without content is rejected.
+test "periodic report requires template and instant report rejects it" {
+  // cron without template is rejected.
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"t\"\ninterval = \"5m\"\n\n[notify.target.feishu]\nurl = \"https://x/y\"\n",
-    ).contains("interval requires content"),
+      "[notify]\n\n[[notify.report]]\nname = \"t\"\ncron = \"*/5 * * * *\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\n",
+    ).contains("cron requires template"),
   )
-  // content without interval is rejected.
+  // template without cron is rejected.
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"t\"\ncontent = \"health\"\n\n[notify.target.feishu]\nurl = \"https://x/y\"\n",
-    ).contains("content requires interval"),
+      "[notify]\n\n[[notify.report]]\nname = \"t\"\ntemplate = \"health\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\n",
+    ).contains("template requires cron"),
   )
-  // Unknown content preset is rejected.
+  // Unknown template preset is rejected.
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"t\"\ninterval = \"5m\"\ncontent = \"weekly_summary\"\n\n[notify.target.feishu]\nurl = \"https://x/y\"\n",
+      "[notify]\n\n[[notify.report]]\nname = \"t\"\ncron = \"*/5 * * * *\"\ntemplate = \"weekly_summary\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\n",
     ).contains("unknown value weekly_summary"),
   )
-  // A valid periodic target parses.
+  // Periodic reports take no event routing.
+  assert_true(
+    notify_error(
+      "[notify]\n\n[[notify.report]]\nname = \"t\"\ncron = \"*/5 * * * *\"\ntemplate = \"health\"\nevents = [\"crash\"]\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\n",
+    ).contains("events is not used by a periodic report"),
+  )
+  // A valid periodic report parses with its schedule.
   let config = @config.parse(
     project_doc(
       (
         #|[notify]
         #|enabled = true
         #|
-        #|[[notify.target]]
+        #|[[notify.report]]
         #|name = "health"
-        #|interval = "5m"
-        #|content = "health"
+        #|cron = "*/5 * * * *"
+        #|template = "health"
         #|
-        #|[notify.target.feishu]
+        #|[[notify.report.target]]
+        #|platform = "feishu"
         #|url = "https://x/y"
       ),
     ),
     "/srv/yicode",
   )
-  let target = config.notify.targets[0]
-  assert_eq(target.platform, "feishu")
-  assert_eq(target.interval, Some(@config.Interval::Minutes(5)))
-  assert_eq(target.content, Some("health"))
+  let report = config.notify.reports[0]
+  assert_eq(report.template, Some("health"))
+  assert_eq(report.cron_text, Some("*/5 * * * *"))
+  let spec = report.cron.unwrap()
+  assert_eq(spec.minutes.length(), 1)
+  assert_eq(spec.minutes[0], 0)
+  assert_eq(spec.hours.length(), 24)
+}
+
+///|
+test "cron rejects malformed fields and the double day restriction" {
+  // Four fields instead of five.
+  assert_true(
+    notify_error(
+      "[notify]\n\n[[notify.report]]\nname = \"t\"\ncron = \"*/5 * * *\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\n",
+    ).contains("five fields"),
+  )
+  // Step syntax works.
+  let config = @config.parse(
+    project_doc(
+      (
+        #|[notify]
+        #|cron = "0 */6 * * *"
+        #|template = "health"
+        #|
+        #|[[notify.report]]
+        #|name = "t"
+        #|
+        #|[[notify.report.target]]
+        #|platform = "feishu"
+        #|url = "https://x/y"
+      ),
+    ),
+    "/srv/yicode",
+  )
+  let spec = config.notify.reports[0].cron.unwrap()
+  assert_eq(spec.hours.length(), 4)
+  // Day-of-month and day-of-week both restricted is rejected.
+  assert_true(
+    notify_error(
+      "[notify]\n\n[[notify.report]]\nname = \"t\"\ncron = \"0 8 1 * 1\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\n",
+    ).contains("both day-of-month and day-of-week"),
+  )
+  // Out-of-range values are rejected.
+  assert_true(
+    notify_error(
+      "[notify]\n\n[[notify.report]]\nname = \"t\"\ncron = \"0 25 * * *\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\n",
+    ).contains("must be between"),
+  )
 }
 
 ///|
@@ -294,10 +345,11 @@ test "new threshold fields parse, default off and validate their ranges" {
 }
 
 ///|
-/// ${VAR} expansion: placeholders resolve against the injected environment,
-/// multiple references compose, and a value without ${ stays untouched.
 test "expand_with resolves placeholders through the lookup" {
-  let vars = Map([("BM2_URL", "https://hook.example/abc"), ("BM2_PATH", "x")])
+  let vars = Map([
+    ("BM2_URL", "https://hook.example/abc"),
+    ("BM2_PATH", "x"),
+  ])
   let lookup = fn(name : String) -> String? { vars.get(name) }
   assert_eq(
     @config.expand_with("${BM2_URL}", "t", lookup),
@@ -305,7 +357,9 @@ test "expand_with resolves placeholders through the lookup" {
   )
   assert_eq(
     @config.expand_with(
-      "https://hook.example/${BM2_PATH}?key=${BM2_URL}", "t", lookup,
+      "https://hook.example/${BM2_PATH}?key=${BM2_URL}",
+      "t",
+      lookup,
     ),
     "https://hook.example/x?key=https://hook.example/abc",
   )
@@ -322,13 +376,11 @@ test "expand_with resolves placeholders through the lookup" {
 }
 
 ///|
-/// Missing variables fail loudly, naming the variable and the field path —
-/// and never echo the configured value, which may itself be a secret.
 test "expand_with rejects unset variables and bad names" {
   fn expand_error(value : String) -> String {
-    try
-      @config.expand_with(value, "t", fn(_name : String) -> String? { None })
-    catch {
+    try @config.expand_with(value, "t", fn(_name : String) -> String? {
+      None
+    }) catch {
       e => e.to_string()
     } noraise {
       _ => "no-error"
@@ -340,11 +392,9 @@ test "expand_with rejects unset variables and bad names" {
   assert_false(message.contains("https://"))
   // Names must look like environment variables.
   fn rejects(value : String) -> Bool {
-    try
-      @config.expand_with(value, "t", fn(_name : String) -> String? {
-        Some("x")
-      })
-    catch {
+    try @config.expand_with(value, "t", fn(_name : String) -> String? {
+      Some("x")
+    }) catch {
       _ => true
     } noraise {
       _ => false
@@ -356,35 +406,39 @@ test "expand_with rejects unset variables and bad names" {
 }
 
 ///|
-/// The real parse path expands target credential fields through the actual
-/// process environment, and an unset variable rejects the whole config.
-test "parse expands credential fields from the environment" {
+test "parse expands ${VAR} anywhere in the notify tree" {
   @env.set_env_var("BM2_TEST_HOOK", "https://hook.example/from-env")
   @env.set_env_var("BM2_TEST_KEY", "sign-key")
+  @env.set_env_var("BM2_TEST_MAIL", "smtps://smtp.example.com:465")
   let config = @config.parse(
     project_doc(
       (
         #|[notify]
         #|enabled = true
+        #|mail_url = "${BM2_TEST_MAIL}"
         #|
-        #|[[notify.target]]
-        #|name = "feishu-test"
-        #|preset = "feishu"
+        #|[[notify.report]]
+        #|name = "t"
+        #|
+        #|[[notify.report.target]]
+        #|platform = "feishu"
         #|url = "${BM2_TEST_HOOK}"
         #|secret = "${BM2_TEST_KEY}"
       ),
     ),
     "/srv/yicode",
   )
-  let target = config.notify.targets[0]
-  assert_eq(target.url, "https://hook.example/from-env")
-  assert_eq(target.secret, Some("sign-key"))
+  assert_eq(config.notify.mail_url, Some("smtps://smtp.example.com:465"))
+  let endpoint = config.notify.reports[0].targets[0]
+  assert_eq(endpoint.url, "https://hook.example/from-env")
+  assert_eq(endpoint.secret, Some("sign-key"))
   @env.unset_env_var("BM2_TEST_HOOK")
   @env.unset_env_var("BM2_TEST_KEY")
+  @env.unset_env_var("BM2_TEST_MAIL")
   // With the variable gone the same config fails, naming the variable.
   assert_true(
     notify_error(
-      "[notify]\n\n[[notify.target]]\nname = \"t\"\npreset = \"feishu\"\nurl = \"${BM2_TEST_HOOK}\"\n",
+      "[notify]\n\n[[notify.report]]\nname = \"t\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"${BM2_TEST_HOOK}\"\n",
     ).contains("BM2_TEST_HOOK which is not set"),
   )
 }

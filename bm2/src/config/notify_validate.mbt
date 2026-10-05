@@ -1,6 +1,6 @@
 ///|
-/// Validation helpers for the `[notify]` section. Every failure names the
-/// field and the target index; no error ever echoes a URL or a credential.
+/// Validation for the `[notify]` section. Every failure names the field and
+/// the report/endpoint index; no error ever echoes a URL or a credential.
 
 ///|
 fn check_int_range(
@@ -28,18 +28,12 @@ fn check_members(
 }
 
 ///|
-fn check_scheme(
-  url : String,
-  schemes : Array[String],
-  ctx : String,
-) -> Unit raise ConfigError {
-  for scheme in schemes {
-    if url.has_prefix(scheme) {
-      return
-    }
+fn check_web_scheme(url : String, ctx : String) -> Unit raise ConfigError {
+  if url.has_prefix("http://") || url.has_prefix("https://") {
+    return
   }
   raise ConfigError::InvalidField(
-    "\{ctx}.url must start with one of:\{schemes.join(", ")}",
+    "\{ctx}.url must start with http:// or https://",
   )
 }
 
@@ -49,12 +43,7 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
   check_int_range(config.dedupe_window_s, 0, 604800, "notify.dedupe_window_s")
   check_int_range(config.max_per_minute, 0, 6000, "notify.max_per_minute")
   check_int_range(config.queue_size, 1, 4096, "notify.queue_size")
-  check_int_range(
-    config.threshold_rss_percent,
-    0,
-    100,
-    "notify.threshold_rss_percent",
-  )
+  check_int_range(config.threshold_rss_percent, 0, 100, "notify.threshold_rss_percent")
   check_int_range(
     config.threshold_offline_min,
     0,
@@ -76,69 +65,70 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
   )
   check_int_range(config.threshold_storm, 0, 1000, "notify.threshold_storm")
   check_members(config.events, notifyEvents, "notify.events")
-  // The mail channel must exist before any email target can use it.
+  // The mail channel must exist before any email endpoint can use it.
   match config.mail_url {
-    Some(url) => check_scheme(url, ["smtp://", "smtps://"], "notify.mail_url")
+    Some(url) => {
+      if !url.has_prefix("smtp://") && !url.has_prefix("smtps://") {
+        raise ConfigError::InvalidField(
+          "notify.mail_url must start with smtp:// or smtps://",
+        )
+      }
+    }
     None => ()
   }
   let seen : Map[String, Unit] = Map([])
-  for index, target in config.targets {
-    // The index, never the URL, is what a message may mention.
-    let ctx = "notify.target[\{index}]"
-    if target.name.is_empty() {
+  for index, report in config.reports {
+    // The index and the report name are what a message may mention.
+    let ctx = "notify.report[\{index}]"
+    if report.name.is_empty() {
       raise ConfigError::InvalidField("\{ctx}.name must not be empty")
     }
-    if seen.contains(target.name) {
-      raise ConfigError::InvalidField("duplicate target name: \{target.name}")
+    if seen.contains(report.name) {
+      raise ConfigError::InvalidField("duplicate report name: \{report.name}")
     }
-    seen[target.name] = ()
-    match target.format {
-      Some(format) => check_members([format], notifyFormats, "\{ctx}.format")
+    seen[report.name] = ()
+    match report.min_level {
+      Some(level) => check_members([level], notifyLevels, "\{ctx}.min_level")
       None => ()
     }
-    // Periodic targets: content already validated at parse time, schedule
-    // already parsed; they take no event routing.
-    if target.interval is Some(_) {
-      ()
-    } else {
-      match target.events {
+    // Instant reports route events; periodic reports need endpoints too.
+    if report.cron is None {
+      match report.events {
         Some(events) => check_members(events, notifyEvents, "\{ctx}.events")
         None => ()
       }
-      match target.min_level {
-        Some(level) => check_members([level], notifyLevels, "\{ctx}.min_level")
-        None => ()
-      }
     }
-    // Platform-specific connection rules.
-    match target.platform {
-      "email" => {
-        // Recipients here; server, sender and auth come from the channel.
-        match target.mail_to {
-          Some(recipients) =>
-            if recipients.is_empty() {
+    if report.targets.is_empty() {
+      raise ConfigError::InvalidField(
+        "\{ctx} must configure at least one [[notify.report.target]]",
+      )
+    }
+    for endpoint_index, endpoint in report.targets {
+      let endpoint_ctx = "\{ctx}.target[\{endpoint_index}]"
+      match endpoint.platform {
+        "email" => {
+          match endpoint.mail_to {
+            Some(recipients) =>
+              if recipients.is_empty() {
+                raise ConfigError::InvalidField(
+                  "\{endpoint_ctx}.email.to must not be empty",
+                )
+              }
+            None =>
               raise ConfigError::InvalidField(
-                "\{ctx}.email.to must not be empty",
+                "\{endpoint_ctx}.email.to is required",
               )
-            }
-          None => raise ConfigError::InvalidField("\{ctx}.email.to is required")
+          }
+          match config.mail_url {
+            Some(_) => ()
+            None =>
+              raise ConfigError::InvalidField(
+                "\{endpoint_ctx} uses the email platform but notify has no mail_url",
+              )
+          }
         }
-        match config.mail_url {
-          Some(_) => ()
-          None =>
-            raise ConfigError::InvalidField(
-              "\{ctx} uses the email platform but notify has no mail_url",
-            )
-        }
+        _ => check_web_scheme(endpoint.url, endpoint_ctx)
       }
-      "feishu" | "dingtalk" | "webhook" =>
-        check_scheme(target.url, ["http://", "https://"], "\{ctx}.url")
-      "wecom" | "slack" | "discord" =>
-        check_scheme(target.url, ["http://", "https://"], "\{ctx}.url")
-      _ =>
-        raise ConfigError::InvalidField(
-          "\{ctx}.platform has unknown value \{target.platform}",
-        )
     }
   }
 }

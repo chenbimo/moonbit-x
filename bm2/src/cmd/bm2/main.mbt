@@ -163,10 +163,12 @@ async fn run() -> Int {
       if command == "notify" {
         // notify delivers synchronously, one target after another, so the CLI
         // has to wait out every target's own timeout.
-        let targets = if cfg.notify.targets.length() > 0 {
-          cfg.notify.targets.length()
-        } else {
-          1
+        let mut targets = 0
+        for report in cfg.notify.reports {
+          targets += report.targets.length()
+        }
+        if targets == 0 {
+          targets = 1
         }
         let notify_need = cfg.notify.timeout_ms * targets + 3000
         if notify_need > timeout_ms {
