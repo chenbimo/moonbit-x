@@ -231,6 +231,22 @@ int32_t subproc_close(int32_t fd) {
   return close(fd) == 0 ? 0 : -errno;
 }
 
+/* Local-time components of epoch_ms: year, month(1-12), day(1-28+),
+ * weekday(0=Sunday..6), hour(0-23), minute(0-59). */
+MOONBIT_FFI_EXPORT
+int32_t subproc_local_parts(int64_t epoch_ms, int32_t out[6]) {
+  time_t secs = (time_t)(epoch_ms / 1000);
+  struct tm tm;
+  if (localtime_r(&secs, &tm) == NULL) return -1;
+  out[0] = tm.tm_year + 1900;
+  out[1] = tm.tm_mon + 1;
+  out[2] = tm.tm_mday;
+  out[3] = tm.tm_wday;
+  out[4] = tm.tm_hour;
+  out[5] = tm.tm_min;
+  return 0;
+}
+
 /* One-minute load average, or -1.0 when unavailable. */
 MOONBIT_FFI_EXPORT
 double subproc_load_1m(void) {

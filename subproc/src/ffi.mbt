@@ -96,6 +96,10 @@ extern "C" fn c_self_exe(buf : Bytes, cap : Int) -> Int = "subproc_self_exe"
 extern "C" fn c_exit(code : Int) -> Unit = "subproc_exit"
 
 ///|
+#borrow(out)
+extern "C" fn c_local_parts(epoch_ms : Int64, out : Bytes) -> Int = "subproc_local_parts"
+
+///|
 extern "C" fn c_load_1m() -> Double = "subproc_load_1m"
 
 ///|
