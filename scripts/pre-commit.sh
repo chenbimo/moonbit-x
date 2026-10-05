@@ -9,7 +9,16 @@
 # Runs inside WSL via scripts/hook-dispatch.sh.
 set -euo pipefail
 
-export PATH="$HOME/.moon/bin:$PATH"
+# The hook may run from Windows git through WSL as any user; probe the
+# well-known toolchain locations instead of trusting $HOME.
+if ! command -v moon > /dev/null 2>&1; then
+  for candidate in /root/.moon/bin /home/*/.moon/bin "$HOME/.moon/bin"; do
+    if [ -x "$candidate/moon" ]; then
+      export PATH="$candidate:$PATH"
+      break
+    fi
+  done
+fi
 
 root=$(pwd)
 [ -f "$root/moon.work" ] || {

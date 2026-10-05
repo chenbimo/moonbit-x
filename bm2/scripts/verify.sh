@@ -2,7 +2,22 @@
 # Run from the Remote-WSL terminal: bash scripts/verify.sh
 set -euo pipefail
 
-export PATH="$HOME/.moon/bin:$PATH"
+# The push hook may arrive from Windows git through WSL as any user, so
+# $HOME cannot be trusted to hold the toolchain: probe the well-known
+# install locations instead.
+if ! command -v moon > /dev/null 2>&1; then
+  for candidate in /root/.moon/bin /home/*/.moon/bin "$HOME/.moon/bin"; do
+    if [ -x "$candidate/moon" ]; then
+      export PATH="$candidate:$PATH"
+      break
+    fi
+  done
+fi
+if ! command -v moon > /dev/null 2>&1; then
+  echo "verify.sh: moon not found (looked in /root/.moon/bin, /home/*/.moon/bin, \$HOME/.moon/bin)" >&2
+  exit 1
+fi
+export PATH="$(command -v moon | xargs dirname):$PATH"
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # The build directory is per environment: Windows only edits the sources (its
