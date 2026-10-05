@@ -349,7 +349,7 @@ async fn cmd_notify(
       policy.targets,
       policy.timeout_ms,
       req.notify_target,
-      @core.test_message(@dateku.now_ms()),
+      @core.test_message(@dateku.now_ms(), lang=policy.lang),
     )
   if results.length() == 0 {
     return @core.Response::error(

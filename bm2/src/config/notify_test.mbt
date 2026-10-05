@@ -392,3 +392,33 @@ test "parse expands credential fields from the environment" {
     ).contains("BM2_TEST_HOOK which is not set"),
   )
 }
+
+///|
+test "notify lang is a closed set defaulting to en" {
+  let config = @config.parse(
+    project_doc(
+      (
+        #|[notify]
+        #|enabled = true
+        #|lang = "zh"
+      ),
+    ),
+    "/srv/yicode",
+  )
+  assert_eq(config.notify.lang, "zh")
+  let plain = @config.parse(
+    project_doc(
+      (
+        #|[notify]
+        #|enabled = true
+      ),
+    ),
+    "/srv/yicode",
+  )
+  assert_eq(plain.notify.lang, "en")
+  assert_true(
+    notify_error("[notify]\nlang = \"fr\"\n").contains(
+      "notify.lang has unknown value fr",
+    ),
+  )
+}

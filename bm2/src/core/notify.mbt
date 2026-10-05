@@ -143,11 +143,16 @@ pub fn Notifier::queued(self : Notifier) -> Int {
 ///|
 /// A message for `bm2 notify`: proves a project's endpoints and credentials work
 /// without waiting for a real incident.
-pub fn test_message(now : UInt64) -> @notify.Message {
-  @notify.Message::new(
-    "lifecycle", "info", "bm2 notification test", "If you see this message, the notification target is configured correctly.",
-    "notify-test", now,
-  )
+pub fn test_message(now : UInt64, lang? : String = "en") -> @notify.Message {
+  let (title, body) = if lang == "zh" {
+    ("bm2 通知测试", "收到此消息说明通知目标配置正确。")
+  } else {
+    (
+      "bm2 notification test",
+      "If you see this message, the notification target is configured correctly.",
+    )
+  }
+  @notify.Message::new("lifecycle", "info", title, body, "notify-test", now)
 }
 
 ///|

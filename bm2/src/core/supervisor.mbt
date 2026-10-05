@@ -419,14 +419,13 @@ pub fn Supervisor::start_app(
 pub fn Supervisor::stop_app(self : Supervisor, app_name : String) -> Unit raise {
   self.pending_restart.remove(app_name)
   let app = self.app_config(app_name)
+  let (title, body) = render_msg(app.notify.lang, ProjectStopped(app_name))
   self.notify_project(
     app_name,
     "lifecycle",
     "info",
-    "Project stopped",
-    "Project " +
-    app_name +
-    " stopped as requested; registration kept — run bm2 start to launch it again.",
+    title,
+    body,
     "stopped|" + app_name,
   )
   for inst in self.app_instances(app_name) {
@@ -448,14 +447,14 @@ pub fn Supervisor::stop_app(self : Supervisor, app_name : String) -> Unit raise 
 pub fn Supervisor::kill_app(self : Supervisor, app_name : String) -> Unit raise {
   self.pending_restart.remove(app_name)
   self.pending_remove[app_name] = ()
+  let app = self.app_config(app_name)
+  let (title, body) = render_msg(app.notify.lang, ProjectKilled(app_name))
   self.notify_project(
     app_name,
     "lifecycle",
     "info",
-    "Project killed",
-    "Project " +
-    app_name +
-    " killed: instances stopped and the registration removed; bm2 list no longer shows it.",
+    title,
+    body,
     "killed|" + app_name,
   )
   for inst in self.app_instances(app_name) {
@@ -686,9 +685,8 @@ fn Supervisor::handle_exit(
         // Clean self-exit after min_uptime: keep the service alive per
         // plan, but do not burn the consecutive-restart budget. Still
         // log the restart so silent restart storms stay observable.
-        self.notify_instance(
-          inst, "lifecycle", "info", "Clean exit, restarting automatically", "Process exited with code 0 after running beyond min_uptime; restarting per plan (crash budget not consumed).",
-        )
+        let (title, body) = render_msg(app.notify.lang, CleanExitRestarting)
+        self.notify_instance(inst, "lifecycle", "info", title, body)
         log_event(
           self.state_dir,
           "bm2d.events.jsonl",
@@ -717,20 +715,19 @@ fn Supervisor::counted_exit(
   self.write_crash(inst, reason)
   self.record_storm_hit(app.name, now)
   let detail = exit_detail(inst)
-  let cause = crash_cause_text(app, inst, reason, detail)
+  let lang = app.notify.lang
+  let cause = crash_cause(
+    lang,
+    reason,
+    detail,
+    app.exec_mode == "cluster" && @subproc.probe_reuseport(inst.port) == 2,
+  )
   if inst.restart_count > app.max_restarts {
-    self.notify_instance(
-      inst,
-      "errored",
-      "error",
-      "Auto-recovery stopped",
-      cause +
-      "; " +
-      inst.restart_count.to_string() +
-      " consecutive crashes, over the budget of " +
-      app.max_restarts.to_string() +
-      ". Fix the issue and run bm2 start again.",
+    let (title, body) = render_msg(
+      lang,
+      ErroredStopped(cause, inst.restart_count, app.max_restarts),
     )
+    self.notify_instance(inst, "errored", "error", title, body)
     log_event(
       self.state_dir,
       "bm2d.events.jsonl",
@@ -742,20 +739,11 @@ fn Supervisor::counted_exit(
     self.mark_errored(inst, reason)
   } else if reason != "memory_limit" &&
     is_oom_kill(inst.last_signal, inst.last_rss_kb, app.max_memory_mb) {
-    self.notify_instance(
-      inst,
-      "oom_kill",
-      "warn",
-      "Killed by the kernel, restarting automatically",
-      cause +
-      "; the last RSS sample was at or above 90% of the " +
-      app.max_memory_mb.to_string() +
-      "MB limit, which points at the kernel OOM killer; " +
-      inst.restart_count.to_string() +
-      "/" +
-      app.max_restarts.to_string() +
-      " consecutive crashes; restarting with backoff.",
+    let (title, body) = render_msg(
+      lang,
+      OomKill(cause, app.max_memory_mb, inst.restart_count, app.max_restarts),
     )
+    self.notify_instance(inst, "oom_kill", "warn", title, body)
     log_event(
       self.state_dir,
       "bm2d.events.jsonl",
@@ -766,18 +754,11 @@ fn Supervisor::counted_exit(
     )
     self.mark_restarting(inst, now + app.restart_delay_ms.to_uint64())
   } else {
-    self.notify_instance(
-      inst,
-      "crash",
-      "warn",
-      "Abnormal exit, restarting automatically",
-      cause +
-      "; " +
-      inst.restart_count.to_string() +
-      "/" +
-      app.max_restarts.to_string() +
-      " consecutive crashes; restarting with backoff.",
+    let (title, body) = render_msg(
+      lang,
+      CrashRestarting(cause, inst.restart_count, app.max_restarts),
     )
+    self.notify_instance(inst, "crash", "warn", title, body)
     log_event(
       self.state_dir,
       "bm2d.events.jsonl",
@@ -788,22 +769,6 @@ fn Supervisor::counted_exit(
     )
     self.mark_restarting(inst, now + app.restart_delay_ms.to_uint64())
   }
-}
-
-///|
-/// The cause part of crash-family notices, with the one cause worth naming
-/// explicitly: a cluster port held exclusively by a foreign process.
-fn crash_cause_text(
-  app : @config.Config,
-  inst : Instance,
-  reason : String,
-  detail : String,
-) -> String {
-  let mut text = "Cause: " + reason + detail
-  if app.exec_mode == "cluster" && @subproc.probe_reuseport(inst.port) == 2 {
-    text = text + "; the port is held exclusively by another process"
-  }
-  text
 }
 
 ///|
@@ -946,16 +911,16 @@ fn Supervisor::stop_for_reuseport(
     pid=trigger.pid,
     detail="cluster mode requires the listener to enable reusePort",
   )
+  let (title, body) = render_msg(
+    app.notify.lang,
+    ReuseportMissing(app.name, app.port),
+  )
   self.notify_project(
     app.name,
     "reuseport_missing",
     "error",
-    "Cluster mode missing reusePort; project stopped",
-    "Project " +
-    app.name +
-    " listens on port " +
-    app.port.to_string() +
-    " in cluster mode without reusePort; to keep instances from racing for the port the project has been stopped. Add reusePort to the listener and run bm2 start again.",
+    title,
+    body,
     "reuseport_missing|" + app.name,
   )
   self.pending_restart.remove(app.name)
@@ -1002,17 +967,11 @@ fn Supervisor::check_memory(self : Supervisor) -> Unit {
                 pid=inst.pid,
                 detail="rss_kb=" + kb.to_string(),
               )
-              self.notify_instance(
-                inst,
-                "memory_limit",
-                "warn",
-                "Memory limit exceeded, restarting",
-                "RSS " +
-                (kb / 1024).to_string() +
-                "MB exceeds the limit of " +
-                app.max_memory_mb.to_string() +
-                "MB.",
+              let (title, body) = render_msg(
+                app.notify.lang,
+                MemoryLimit(kb / 1024, app.max_memory_mb),
               )
+              self.notify_instance(inst, "memory_limit", "warn", title, body)
               // Over the limit counts as an abnormal exit: it restarts
               // against the crash budget via the RestartCounted intent.
               terminate(app, inst, RestartCounted, "memory_limit")
@@ -1148,20 +1107,16 @@ fn Supervisor::spawn_fresh(self : Supervisor, app_name : String) -> Unit raise {
     // and the remaining instances still deserve their spawn.
     @fndash.discard(() => self.spawn_instance(app, inst))
   }
+  let (title, body) = render_msg(
+    app.notify.lang,
+    ProjectStarted(app.instances, app.exec_mode, app.port),
+  )
   self.notify_project(
     app_name,
     "lifecycle",
     "info",
-    "Project started",
-    "Project " +
-    app_name +
-    " started " +
-    app.instances.to_string() +
-    " instance(s) as configured (" +
-    app.exec_mode +
-    " mode, port " +
-    app.port.to_string() +
-    ").",
+    title,
+    body,
     "started|" + app_name,
   )
 }
@@ -1243,17 +1198,11 @@ fn Supervisor::mark_spawn_failed(self : Supervisor, inst : Instance) -> Unit {
     None => return
   }
   if inst.restart_count > app.max_restarts {
-    self.notify_instance(
-      inst,
-      "errored",
-      "error",
-      "Auto-recovery stopped",
-      "Spawn failed; " +
-      inst.restart_count.to_string() +
-      " consecutive failures, over the budget of " +
-      app.max_restarts.to_string() +
-      ". Check script, cwd and runtime availability.",
+    let (title, body) = render_msg(
+      app.notify.lang,
+      ErroredSpawnStopped(inst.restart_count, app.max_restarts),
     )
+    self.notify_instance(inst, "errored", "error", title, body)
     log_event(
       self.state_dir,
       "bm2d.events.jsonl",
@@ -1264,16 +1213,11 @@ fn Supervisor::mark_spawn_failed(self : Supervisor, inst : Instance) -> Unit {
     )
     self.mark_errored(inst, "spawn_failed")
   } else {
-    self.notify_instance(
-      inst,
-      "crash",
-      "warn",
-      "Spawn failed, retrying",
-      inst.restart_count.to_string() +
-      "/" +
-      app.max_restarts.to_string() +
-      " consecutive failures; retrying with backoff.",
+    let (title, body) = render_msg(
+      app.notify.lang,
+      SpawnFailedRetrying(inst.restart_count, app.max_restarts),
     )
+    self.notify_instance(inst, "crash", "warn", title, body)
     log_event(
       self.state_dir,
       "bm2d.events.jsonl",

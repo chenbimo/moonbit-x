@@ -103,3 +103,32 @@ test "storm window counts recent restarts and prunes old ones" {
   // entry is still inside the window.
   assert_eq(storm_hit_count(hits, 12000UL, 5000UL), 1)
 }
+
+///|
+/// Notification copy renders per project language; unknown falls back to en.
+test "notification copy renders in the configured language" {
+  let (en_title, en_body) = render_msg("en", ProjectStarted(4, "cluster", 3020))
+  assert_eq(en_title, "Project started")
+  assert_eq(en_body, "Started 4 instance(s) as configured (cluster mode, port 3020).")
+  let (zh_title, zh_body) = render_msg("zh", ProjectStarted(4, "cluster", 3020))
+  assert_eq(zh_title, "项目已启动")
+  assert_eq(zh_body, "已按配置启动 4 个实例（cluster 模式，端口 3020）。")
+  // Unknown language falls back to English.
+  let (fb_title, _) = render_msg("fr", ProjectStopped("api"))
+  assert_eq(fb_title, "Project stopped")
+  // Crash cause sentence carries the port-conflict note in both languages.
+  assert_eq(
+    crash_cause("zh", "signal", "（signal=SIGKILL）", true),
+    "原因：signal（signal=SIGKILL）；端口已被其他进程独占",
+  )
+  assert_eq(
+    crash_cause("en", "signal", " (signal=SIGKILL)", true),
+    "Cause: signal (signal=SIGKILL); the port is held exclusively by another process",
+  )
+  // Report titles distinguish health from daily in both languages.
+  let (h, _) = render_msg("zh", HealthReport("api", false, false))
+  assert_eq(h, "bm2 健康报告 · api")
+  let (d, _) = render_msg("zh", HealthReport("api", true, true))
+  assert_eq(d, "bm2 日报 · api")
+  assert_eq(d != h, true)
+}

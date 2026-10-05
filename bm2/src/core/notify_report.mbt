@@ -154,21 +154,31 @@ fn Supervisor::report_line(
   self : Supervisor,
   inst : Instance,
   now : UInt64,
+  lang? : String = "en",
   peak? : Int? = None,
 ) -> String {
+  let zh = lang == "zh"
+  // Per-language field labels; the machine keys inside events stay neutral.
+  let (lb_port, lb_rss, lb_peak, lb_cpu, lb_uptime, lb_restarts) = if zh {
+    ("端口", "内存", "峰值", "CPU", "运行", "重启")
+  } else {
+    ("port", "RSS", "peak", "CPU", "uptime", "restarts")
+  }
   let mut line = inst.app_name +
     "/" +
     inst.instance_id.to_string() +
     " " +
     inst.status.as_string()
-  line = line + " · port " + inst.port.to_string()
+  line = line + " · " + lb_port + " " + inst.port.to_string()
   if inst.status is Online {
     match @subproc.read_rss_kb(inst.pid) {
-      Some(kb) => line = line + " · RSS " + (kb / 1024).to_string() + "MB"
+      Some(kb) =>
+        line = line + " · " + lb_rss + " " + (kb / 1024).to_string() + "MB"
       None => ()
     }
     match peak {
-      Some(kb) => line = line + " · peak " + (kb / 1024).to_string() + "MB"
+      Some(kb) =>
+        line = line + " · " + lb_peak + " " + (kb / 1024).to_string() + "MB"
       None => ()
     }
     match
@@ -177,11 +187,16 @@ fn Supervisor::report_line(
         inst.pid,
         now,
       ) {
-      Some(percent) => line = line + " · CPU " + format_percent(percent) + "%"
+      Some(percent) =>
+        line = line + " · " + lb_cpu + " " + format_percent(percent) + "%"
       None => ()
     }
     if inst.started_at_ms > 0UL && now > inst.started_at_ms {
-      line = line + " · uptime " + human_duration(now - inst.started_at_ms)
+      line = line +
+        " · " +
+        lb_uptime +
+        " " +
+        human_duration(now - inst.started_at_ms)
     }
   } else if inst.last_reason is Some(reason) {
     line = line + " · " + reason
@@ -190,7 +205,9 @@ fn Supervisor::report_line(
     match self.apps.get(inst.app_name) {
       Some(app) =>
         line = line +
-          " · restarts " +
+          " · " +
+          lb_restarts +
+          " " +
           inst.restart_count.to_string() +
           "/" +
           app.max_restarts.to_string()
@@ -239,7 +256,7 @@ fn Supervisor::build_report(
         } else {
           None
         }
-        lines.push(self.report_line(inst, now, peak~))
+        lines.push(self.report_line(inst, now, lang=policy.lang, peak~))
       }
     None => ()
   }
@@ -269,6 +286,10 @@ fn Supervisor::build_report(
       None => ()
     }
   }
+  let (title, rendered_body) = render_msg(
+    policy.lang,
+    HealthReport(app_name, daily, lines.length() == 0),
+  )
   @notify.Message::new(
     "report",
     if other > 0 {
@@ -276,13 +297,9 @@ fn Supervisor::build_report(
     } else {
       "info"
     },
-    if daily {
-      "bm2 daily report · \{app_name}"
-    } else {
-      "bm2 health report · \{app_name}"
-    },
+    title,
     if lines.length() == 0 {
-      "No instances."
+      rendered_body
     } else {
       lines.join("\n")
     },
@@ -314,17 +331,11 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
           let key = app_name + "/" + inst.instance_id.to_string()
           if policy.threshold_restarts > 0 &&
             inst.restart_count >= policy.threshold_restarts {
-            self.notify_instance(
-              inst,
-              "threshold",
-              "warn",
-              "Restarting too often",
-              "Consecutive abnormal restarts " +
-              inst.restart_count.to_string() +
-              ", threshold " +
-              policy.threshold_restarts.to_string() +
-              " reached.",
+            let (title, body) = render_msg(
+              policy.lang,
+              ThresholdRestarts(inst.restart_count, policy.threshold_restarts),
             )
+            self.notify_instance(inst, "threshold", "warn", title, body)
           }
           if policy.start_timeout_ms > 0 && inst.status is Online {
             let probe_key = app_name + "/" + inst.instance_id.to_string()
@@ -337,17 +348,11 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
               let rc = @subproc.probe_reuseport(inst.port)
               if rc == 0 {
                 self.start_probe_done[probe_key] = inst.started_at_ms
-                self.notify_instance(
-                  inst,
-                  "start_timeout",
-                  "warn",
-                  "Port never started listening",
-                  "No listener on port " +
-                  inst.port.to_string() +
-                  " within " +
-                  policy.start_timeout_ms.to_string() +
-                  "ms of spawn; the app may be stuck before bind().",
+                let (title, body) = render_msg(
+                  policy.lang,
+                  StartTimeout(inst.port, policy.start_timeout_ms),
                 )
+                self.notify_instance(inst, "start_timeout", "warn", title, body)
               } else if rc > 0 {
                 // Listening (shared or exclusive) — settled for this spawn.
                 self.start_probe_done[probe_key] = inst.started_at_ms
@@ -361,17 +366,14 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
             let since = self.notify.offline_since(key, now)
             let limit = (policy.threshold_offline_min * 60000).to_uint64()
             if now >= since && now - since >= limit {
-              self.notify_instance(
-                inst,
-                "threshold",
-                "warn",
-                "Instance down for too long",
-                "Instance has been " +
-                inst.status.as_string() +
-                " for over " +
-                policy.threshold_offline_min.to_string() +
-                " minutes.",
+              let (title, body) = render_msg(
+                policy.lang,
+                ThresholdOffline(
+                  inst.status.as_string(),
+                  policy.threshold_offline_min,
+                ),
               )
+              self.notify_instance(inst, "threshold", "warn", title, body)
             }
           }
         }
@@ -381,16 +383,16 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
       match @subproc.disk_free_kb(self.state_dir) {
         Some(kb) =>
           if kb < (policy.threshold_disk_mb * 1024).to_int64() {
+            let (title, body) = render_msg(
+              policy.lang,
+              DiskPressure(policy.threshold_disk_mb, (kb / 1048576).to_int()),
+            )
             self.notify_project(
               app_name,
               "disk_pressure",
               "warn",
-              "Disk space is running low",
-              "The filesystem holding ~/.bm2 has less than " +
-              policy.threshold_disk_mb.to_string() +
-              "MB left (" +
-              (kb / 1048576).to_string() +
-              "GB free); state files and logs may fail to write.",
+              title,
+              body,
               "disk_pressure|" + app_name,
             )
           }
@@ -404,15 +406,16 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
       }
       let count = storm_hit_count(hits, now, STORM_WINDOW_MS)
       if count >= policy.threshold_storm {
+        let (title, body) = render_msg(
+          policy.lang,
+          RestartStorm(count, policy.threshold_storm),
+        )
         self.notify_project(
           app_name,
           "threshold",
           "warn",
-          "Restart storm",
-          count.to_string() +
-          " restarts within 10 minutes, threshold " +
-          policy.threshold_storm.to_string() +
-          " reached.",
+          title,
+          body,
           "storm|" + app_name,
         )
       }
@@ -469,18 +472,14 @@ pub fn Supervisor::notify_memory_pressure(
     None => 0
   }
   if limit_kb > 0 && rss_kb * 100 >= limit_kb * policy.threshold_rss_percent {
-    self.notify_instance(
-      inst,
-      "threshold",
-      "warn",
-      "Memory approaching limit",
-      "RSS " +
-      (rss_kb / 1024).to_string() +
-      "MB, which is " +
-      policy.threshold_rss_percent.to_string() +
-      "% of the " +
-      (limit_kb / 1024).to_string() +
-      "MB limit.",
+    let (title, body) = render_msg(
+      policy.lang,
+      ThresholdMemory(
+        rss_kb / 1024,
+        policy.threshold_rss_percent,
+        limit_kb / 1024,
+      ),
     )
+    self.notify_instance(inst, "threshold", "warn", title, body)
   }
 }

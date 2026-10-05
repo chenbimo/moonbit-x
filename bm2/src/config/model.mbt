@@ -61,6 +61,9 @@ pub extend NotifyTarget with Debug::{to_repr}
 /// config: a project's supervision and its reporting are one unit.
 pub(all) struct NotifyConfig {
   enabled : Bool
+  /// Notification copy language: "en" (default) or "zh". Only what a human
+  /// reads in a chat group is translated; CLI/log/JSON stay language-neutral.
+  lang : String
   timeout_ms : Int
   dedupe_window_s : Int
   max_per_minute : Int
@@ -88,6 +91,7 @@ pub extend NotifyConfig with Debug::{to_repr}
 pub fn NotifyConfig::disabled() -> NotifyConfig {
   {
     enabled: false,
+    lang: "en",
     timeout_ms: 5000,
     dedupe_window_s: 3600,
     max_per_minute: 30,

@@ -367,6 +367,7 @@ Everything under `[notify]` is optional; without the table the project reports n
 | Field | Meaning | Example |
 | --- | --- | --- |
 | `enabled` | Master switch, default `false` | `true` |
+| `lang` | Notification copy language: `en` (default) / `zh`; only chat messages are translated — CLI, logs and JSON stay language-neutral | `zh` |
 | `timeout_ms` | Hard timeout per delivery (100~60000, default 5000), also the ceiling on how long supervision can be occupied | `5000` |
 | `dedupe_window_s` | Minimum interval for one event signature (0~604800, default 3600); 0 disables dedupe | `3600` |
 | `max_per_minute` | Send limit (0~6000, default 30); excess is dropped and counted | `30` |
