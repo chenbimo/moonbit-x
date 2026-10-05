@@ -148,8 +148,7 @@ pub fn test_message(now : UInt64, lang? : String = "en") -> @notify.Message {
     ("bm2 通知测试", "收到此消息说明通知目标配置正确。")
   } else {
     (
-      "bm2 notification test",
-      "If you see this message, the notification target is configured correctly.",
+      "bm2 notification test", "If you see this message, the notification target is configured correctly.",
     )
   }
   @notify.Message::new("lifecycle", "info", title, body, "notify-test", now)

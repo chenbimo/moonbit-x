@@ -59,8 +59,7 @@ fn render_en(msg : Bm2Msg) -> (String, String) {
       )
     CleanExitRestarting =>
       (
-        "Clean exit, restarting automatically",
-        "Process exited with code 0 after running beyond min_uptime; restarting per plan (crash budget not consumed).",
+        "Clean exit, restarting automatically", "Process exited with code 0 after running beyond min_uptime; restarting per plan (crash budget not consumed).",
       )
     CrashRestarting(cause, count, budget) =>
       (
@@ -147,13 +146,18 @@ fn render_zh(msg : Bm2Msg) -> (String, String) {
         "已按配置启动 \{instances} 个实例（\{mode} 模式，端口 \{port}）。",
       )
     ProjectStopped(app) =>
-      ("项目已停止", "项目 \{app} 已按需停止；注册保留——执行 bm2 start 可再次拉起。")
+      (
+        "项目已停止",
+        "项目 \{app} 已按需停止；注册保留——执行 bm2 start 可再次拉起。",
+      )
     ProjectKilled(app) =>
-      ("项目已注销", "项目 \{app} 已注销：实例停止且注册移除，bm2 list 不再显示。")
+      (
+        "项目已注销",
+        "项目 \{app} 已注销：实例停止且注册移除，bm2 list 不再显示。",
+      )
     CleanExitRestarting =>
       (
-        "干净退出，自动重启",
-        "进程超过 min_uptime 后以 code 0 退出；按计划重启（不消耗崩溃预算）。",
+        "干净退出，自动重启", "进程超过 min_uptime 后以 code 0 退出；按计划重启（不消耗崩溃预算）。",
       )
     CrashRestarting(cause, count, budget) =>
       (
@@ -161,7 +165,10 @@ fn render_zh(msg : Bm2Msg) -> (String, String) {
         "\{cause}；连续第 \{count}/\{budget} 次崩溃，退避后重启。",
       )
     SpawnFailedRetrying(count, budget) =>
-      ("启动失败，重试中", "连续 \{count}/\{budget} 次启动失败；按退避重试。")
+      (
+        "启动失败，重试中",
+        "连续 \{count}/\{budget} 次启动失败；按退避重试。",
+      )
     ErroredStopped(cause, count, budget) =>
       (
         "自动恢复已停止",
@@ -173,20 +180,35 @@ fn render_zh(msg : Bm2Msg) -> (String, String) {
         "启动失败；连续 \{count} 次超出预算 \{budget}。请检查脚本、cwd 与运行时可用性。",
       )
     MemoryLimit(rss_mb, limit_mb) =>
-      ("内存超限，正在重启", "RSS \{rss_mb}MB 超过上限 \{limit_mb}MB。")
+      (
+        "内存超限，正在重启",
+        "RSS \{rss_mb}MB 超过上限 \{limit_mb}MB。",
+      )
     ReuseportMissing(app, port) =>
       (
         "cluster 缺少 reusePort，项目已停止",
         "项目 \{app} 以 cluster 模式监听 \{port} 端口但未开启 reusePort；为避免实例抢端口，项目已停止。开启后重新 bm2 start 即可。",
       )
     ThresholdRestarts(count, threshold) =>
-      ("重启过于频繁", "连续异常重启 \{count} 次，达到阈值 \{threshold}。")
+      (
+        "重启过于频繁",
+        "连续异常重启 \{count} 次，达到阈值 \{threshold}。",
+      )
     ThresholdOffline(status, minutes) =>
-      ("实例离线过久", "实例已处于 \{status} 状态超过 \{minutes} 分钟。")
+      (
+        "实例离线过久",
+        "实例已处于 \{status} 状态超过 \{minutes} 分钟。",
+      )
     ThresholdMemory(rss_mb, percent, limit_mb) =>
-      ("内存逼近上限", "RSS \{rss_mb}MB，已达 \{limit_mb}MB 上限的 \{percent}%。")
+      (
+        "内存逼近上限",
+        "RSS \{rss_mb}MB，已达 \{limit_mb}MB 上限的 \{percent}%。",
+      )
     RestartStorm(count, threshold) =>
-      ("重启风暴", "10 分钟内重启 \{count} 次，达到阈值 \{threshold}。")
+      (
+        "重启风暴",
+        "10 分钟内重启 \{count} 次，达到阈值 \{threshold}。",
+      )
     OomKill(cause, limit_mb, count, budget) =>
       (
         "内核杀进程，自动重启",
@@ -216,7 +238,12 @@ fn render_zh(msg : Bm2Msg) -> (String, String) {
 ///|
 /// The cause sentence of crash-family notices, with the one cause worth
 /// naming explicitly: a cluster port held exclusively by a foreign process.
-pub fn crash_cause(lang : String, reason : String, detail : String, port_conflict : Bool) -> String {
+pub fn crash_cause(
+  lang : String,
+  reason : String,
+  detail : String,
+  port_conflict : Bool,
+) -> String {
   let mut text = if lang == "zh" {
     "原因：\{reason}\{detail}"
   } else {

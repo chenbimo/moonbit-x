@@ -109,10 +109,14 @@ test "storm window counts recent restarts and prunes old ones" {
 test "notification copy renders in the configured language" {
   let (en_title, en_body) = render_msg("en", ProjectStarted(4, "cluster", 3020))
   assert_eq(en_title, "Project started")
-  assert_eq(en_body, "Started 4 instance(s) as configured (cluster mode, port 3020).")
+  assert_eq(
+    en_body, "Started 4 instance(s) as configured (cluster mode, port 3020).",
+  )
   let (zh_title, zh_body) = render_msg("zh", ProjectStarted(4, "cluster", 3020))
   assert_eq(zh_title, "项目已启动")
-  assert_eq(zh_body, "已按配置启动 4 个实例（cluster 模式，端口 3020）。")
+  assert_eq(
+    zh_body, "已按配置启动 4 个实例（cluster 模式，端口 3020）。",
+  )
   // Unknown language falls back to English.
   let (fb_title, _) = render_msg("fr", ProjectStopped("api"))
   assert_eq(fb_title, "Project stopped")
