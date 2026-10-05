@@ -129,10 +129,12 @@ test "notification copy renders in the configured language" {
     crash_cause("en", "signal", " (signal=SIGKILL)", true),
     "Cause: signal (signal=SIGKILL); the port is held exclusively by another process",
   )
-  // Report titles distinguish health from daily in both languages.
-  let (h, _) = render_msg("zh", HealthReport("api", false, false))
+  // Report titles render in both languages.
+  let (h, _) = render_msg("zh", HealthReport("api", false))
   assert_eq(h, "bm2 健康报告 · api")
-  let (d, _) = render_msg("zh", HealthReport("api", true, true))
-  assert_eq(d, "bm2 日报 · api")
-  assert_eq(d != h, true)
+  let (s, _) = render_msg("zh", StatsReport("api"))
+  assert_eq(s, "bm2 统计报告 · api")
+  assert_eq(s != h, true)
+  let (dt, _) = render_msg("zh", DaemonAdopted(4))
+  assert_eq(dt, "bm2d 已启动")
 }

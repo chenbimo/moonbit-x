@@ -62,16 +62,7 @@ async fn run() -> Int {
   // inherited; a reload or an upgrade lands here too, so this doubles as the
   // "swap finished" notice.
   for name in sv.app_names() {
-    sv.notify_project(
-      name,
-      "daemon",
-      "info",
-      "bm2d started",
-      "Adopted this project: " +
-      sv.online_count(name).to_string() +
-      " online instance(s).",
-      "daemon_started|" + name,
-    )
+    sv.notify_daemon_started(name)
   }
   // SIGTERM/SIGINT cancel the async runtime; the shutdown path below treats
   // a cancelled run as the graceful (stop-then-exit) path.
@@ -347,6 +338,7 @@ async fn cmd_notify(
     .notifier()
     .deliver_now(
       policy.targets,
+      policy,
       policy.timeout_ms,
       req.notify_target,
       @core.test_message(@dateku.now_ms(), lang=policy.lang),

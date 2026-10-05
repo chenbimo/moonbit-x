@@ -34,23 +34,45 @@ pub extend Config with Debug::{to_repr}
 /// and authentication; the remaining fields are the endpoint and its
 /// credentials. url/secret/password/username are sensitive: they are never
 /// echoed in errors, events or CLI output.
+///|
+/// Schedule of a periodic target, parsed from the `interval` string.
+pub(all) enum Interval {
+  /// Every N minutes, 1~60.
+  Minutes(Int)
+  /// Every N hours, 1~24.
+  Hours(Int)
+  /// Every day at the given hour (0~23).
+  Daily(Int)
+  /// Every week on weekday (1=Monday..7=Sunday) at hour (0~23).
+  Weekly(Int, Int)
+  /// Every month on day (1~28) at hour (0~23).
+  Monthly(Int, Int)
+} derive(Debug, Eq)
+
+///|
+pub extend Interval with Debug::{to_repr}
+
+///|
+pub extend Interval with Eq::{not_equal, equal}
+
+///|
 pub(all) struct NotifyTarget {
   name : String
-  preset : String
+  label : String?
+  /// Event targets only: which events this address receives.
+  events : Array[String]?
+  min_level : String?
+  /// Periodic targets only: schedule + which preset content to render.
+  interval : Interval?
+  content : String?
+  /// Resolved platform: one of the seven known keys.
+  platform : String
+  /// Platform endpoint; empty for email (the mail channel owns it).
   url : String
   secret : String?
   format : String?
-  events : Array[String]?
-  min_level : String?
-  report : Bool?
-  label : String?
-  /// email preset only.
-  from : String?
-  to : Array[String]?
-  /// email preset only; both are optional for servers that accept mail
-  /// without authentication (relay on localhost).
-  username : String?
-  password : String?
+  /// email platform only: recipients.
+  mail_to : Array[String]?
 } derive(Debug)
 
 ///|
@@ -61,6 +83,12 @@ pub extend NotifyTarget with Debug::{to_repr}
 /// config: a project's supervision and its reporting are one unit.
 pub(all) struct NotifyConfig {
   enabled : Bool
+  /// Mail channel: send capability configured once, used by every email
+  /// target. Targets only carry recipients (mail_to).
+  mail_url : String?
+  mail_from : String?
+  mail_username : String?
+  mail_password : String?
   /// Notification copy language: "en" (default) or "zh". Only what a human
   /// reads in a chat group is translated; CLI/log/JSON stay language-neutral.
   lang : String
@@ -70,9 +98,6 @@ pub(all) struct NotifyConfig {
   queue_size : Int
   events : Array[String]
   report_interval_min : Int
-  report_fields : Array[String]
-  daily_report_hour : Int
-  include_log_lines : Int
   threshold_rss_percent : Int
   threshold_offline_min : Int
   threshold_restarts : Int
@@ -91,6 +116,10 @@ pub extend NotifyConfig with Debug::{to_repr}
 pub fn NotifyConfig::disabled() -> NotifyConfig {
   {
     enabled: false,
+    mail_url: None,
+    mail_from: None,
+    mail_username: None,
+    mail_password: None,
     lang: "en",
     timeout_ms: 5000,
     dedupe_window_s: 3600,
@@ -98,9 +127,6 @@ pub fn NotifyConfig::disabled() -> NotifyConfig {
     queue_size: 128,
     events: [],
     report_interval_min: 0,
-    report_fields: ["status", "rss", "restarts", "uptime", "ports"],
-    daily_report_hour: -1,
-    include_log_lines: 0,
     threshold_rss_percent: 0,
     threshold_offline_min: 0,
     threshold_restarts: 0,

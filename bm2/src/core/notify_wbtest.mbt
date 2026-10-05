@@ -5,32 +5,26 @@
 
 ///|
 fn wb_target(
-  preset : String,
+  platform : String,
   url : String,
   secret? : String,
   format? : String,
   events? : Array[String],
   min_level? : String,
-  report? : Bool,
-  from? : String,
-  to? : Array[String],
-  username? : String,
-  password? : String,
+  mail_to? : Array[String],
 ) -> @config.NotifyTarget {
   {
     name: "t",
-    preset,
+    platform,
     url,
     secret,
     format,
     events,
     min_level,
-    report,
     label: None,
-    from,
-    to,
-    username,
-    password,
+    interval: None,
+    content: None,
+    mail_to,
   }
 }
 
@@ -165,7 +159,7 @@ test "per-target subscriptions and level floors are honoured" {
   let only_reports = wb_target("webhook", "http://127.0.0.1:9/b", events=[
     "report",
   ])
-  let opted_out = wb_target("webhook", "http://127.0.0.1:9/c", report=false)
+  let opted_out = wb_target("webhook", "http://127.0.0.1:9/c")
   assert_false(wants(quiet, config, wb_message("warn", 1000UL)))
   assert_true(wants(quiet, config, wb_message("error", 1000UL)))
   assert_false(wants(only_reports, config, wb_message("warn", 1000UL)))
@@ -205,6 +199,7 @@ async test "a failed delivery reports a reason without the credential" {
   let notifier = wb_notifier("fail")
   let results = notifier.deliver_now(
     policy.targets,
+    policy,
     policy.timeout_ms,
     None,
     @notify.Message::new("crash", "warn", "t", "b", "s", 1000UL),

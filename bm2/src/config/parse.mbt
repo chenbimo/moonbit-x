@@ -57,6 +57,7 @@ pub fn parse(doc : String, base_dir : String) -> Config raise ConfigError {
   let value = @toml.parse(doc) catch {
     e => raise ConfigError::InvalidDocument(e.to_string())
   }
+  let value = expand_toml_tree(value, "")
   guard value is @toml.TomlTable(table) else {
     raise ConfigError::InvalidDocument("bm2.toml root must be a table")
   }

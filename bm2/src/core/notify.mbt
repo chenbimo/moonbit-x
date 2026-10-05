@@ -178,12 +178,6 @@ fn wants(
   if !events.contains(msg.event) {
     return false
   }
-  if msg.event == "report" {
-    match target.report {
-      Some(false) => return false
-      _ => ()
-    }
-  }
   match target.min_level {
     Some(minimum) => level_rank(msg.level) >= level_rank(minimum)
     None => true
@@ -193,23 +187,44 @@ fn wants(
 ///|
 /// bm2.toml 的 target 携带订阅字段(events/min_level/report/label),投递用不到;
 /// 转换为库的中立 Target。
-fn lib_target(target : @config.NotifyTarget) -> @notify.Target {
+/// Build a library target from a config target. Email targets borrow the
+/// send capability from the project's mail channel; their own config only
+/// ever carries recipients.
+fn lib_target(
+  target : @config.NotifyTarget,
+  mail_url : String?,
+  mail_from : String?,
+  mail_username : String?,
+  mail_password : String?,
+) -> @notify.Target {
+  let is_email = target.platform == "email"
   {
     name: target.name,
-    preset: target.preset,
-    url: target.url,
+    preset: target.platform,
+    url: if is_email { mail_url.unwrap_or("") } else { target.url },
     secret: target.secret,
     format: target.format,
-    from: target.from,
-    to: target.to,
-    username: target.username,
-    password: target.password,
+    from: if is_email { mail_from } else { None },
+    to: target.mail_to,
+    username: if is_email { mail_username } else { None },
+    password: if is_email { mail_password } else { None },
   }
 }
 
 ///|
-fn lib_targets(targets : Array[@config.NotifyTarget]) -> Array[@notify.Target] {
-  targets.map(lib_target)
+fn lib_targets(
+  targets : Array[@config.NotifyTarget],
+  policy : @config.NotifyConfig,
+) -> Array[@notify.Target] {
+  targets.map(fn(target) {
+    lib_target(
+      target,
+      policy.mail_url,
+      policy.mail_from,
+      policy.mail_username,
+      policy.mail_password,
+    )
+  })
 }
 
 ///|
@@ -236,7 +251,7 @@ pub fn Notifier::emit(
     msg.key,
     app,
     msg,
-    lib_targets(targets),
+    lib_targets(targets, policy),
     policy.timeout_ms,
     dedupe_window_s=policy.dedupe_window_s,
     rate_per_minute=policy.max_per_minute,
@@ -296,6 +311,7 @@ pub async fn Notifier::pump(self : Notifier, now : UInt64) -> Int {
 pub async fn Notifier::deliver_now(
   self : Notifier,
   targets : Array[@config.NotifyTarget],
+  policy : @config.NotifyConfig,
   timeout_ms : Int,
   target_name : String?,
   msg : @notify.Message,
@@ -305,7 +321,7 @@ pub async fn Notifier::deliver_now(
     None => targets
   }
   let results = @notify.deliver_all(
-    lib_targets(chosen),
+    lib_targets(chosen, policy),
     msg,
     timeout_ms,
     self.ctx,

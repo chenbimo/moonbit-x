@@ -137,6 +137,24 @@ pub fn Supervisor::notify_project(
 }
 
 ///|
+/// Daemon started / reloaded: tell each project's own targets.
+pub fn Supervisor::notify_daemon_started(self : Supervisor, app_name : String) -> Unit {
+  let policy = self.project_policy(app_name)
+  let (title, body) = render_msg(
+    policy.lang,
+    DaemonAdopted(self.online_count(app_name)),
+  )
+  self.notify_project(
+    app_name,
+    "daemon",
+    "info",
+    title,
+    body,
+    "daemon_started|" + app_name,
+  )
+}
+
+///|
 /// Online instance count of one project, for the daemon start notice.
 pub fn Supervisor::online_count(self : Supervisor, app_name : String) -> Int {
   match self.instances.get(app_name) {
@@ -225,20 +243,17 @@ fn format_percent(percent : Double) -> String {
 
 ///|
 /// The periodic report for one project: every instance on one line, plus the
-/// project's own shape. `report_fields` selects which of these appear. The
-/// daily variant reads its peaks from the daily window and says so in the
-/// title.
+/// project's own shape. Reports always carry the full picture.
 fn Supervisor::build_report(
   self : Supervisor,
   app_name : String,
   policy : @config.NotifyConfig,
   now : UInt64,
-  daily? : Bool = false,
+  stats? : Bool = false,
 ) -> @notify.Message {
   let lines = []
   let mut online = 0
   let mut other = 0
-  let want_peak = daily || policy.report_fields.contains("peak")
   match self.instances.get(app_name) {
     Some(arr) =>
       for inst in arr {
@@ -248,47 +263,37 @@ fn Supervisor::build_report(
           other += 1
         }
         let key = inst.app_name + "/" + inst.instance_id.to_string()
-        let peak = if want_peak {
-          match daily {
-            true => self.notify.take_daily_peak(key)
-            false => self.notify.take_report_peak(key)
-          }
-        } else {
-          None
-        }
+        let peak = self.notify.take_report_peak(key)
         lines.push(self.report_line(inst, now, lang=policy.lang, peak~))
       }
     None => ()
   }
+  // Reports always carry the full picture: counts, shape, load, disk.
   let fields : Array[(String, String)] = [("host", self.notify.host)]
-  if policy.report_fields.contains("status") {
-    fields.push(("online", online.to_string()))
-    fields.push(("abnormal", other.to_string()))
-  }
-  if policy.report_fields.contains("ports") {
-    match self.apps.get(app_name) {
-      Some(config) => {
-        fields.push(("mode", config.exec_mode))
-        fields.push(("port", config.port.to_string()))
-      }
-      None => ()
+  fields.push(("online", online.to_string()))
+  fields.push(("abnormal", other.to_string()))
+  match self.apps.get(app_name) {
+    Some(config) => {
+      fields.push(("mode", config.exec_mode))
+      fields.push(("port", config.port.to_string()))
     }
+    None => ()
   }
-  if policy.report_fields.contains("load") {
-    match @subproc.load_1m() {
-      Some(value) => fields.push(("load1", format_percent(value)))
-      None => ()
-    }
+  match @subproc.load_1m() {
+    Some(value) => fields.push(("load1", format_percent(value)))
+    None => ()
   }
-  if policy.report_fields.contains("disk") {
-    match @subproc.disk_free_kb(self.state_dir) {
-      Some(kb) => fields.push(("disk_free", (kb / 1048576).to_string() + "GB"))
-      None => ()
-    }
+  match @subproc.disk_free_kb(self.state_dir) {
+    Some(kb) => fields.push(("disk_free", (kb / 1048576).to_string() + "GB"))
+    None => ()
   }
   let (title, rendered_body) = render_msg(
     policy.lang,
-    HealthReport(app_name, daily, lines.length() == 0),
+    if stats {
+      StatsReport(app_name)
+    } else {
+      HealthReport(app_name, lines.length() == 0)
+    },
   )
   @notify.Message::new(
     "report",
@@ -303,8 +308,8 @@ fn Supervisor::build_report(
     } else {
       lines.join("\n")
     },
-    if daily {
-      "daily_report|" + app_name
+    if stats {
+      "stats|" + app_name
     } else {
       "report|" + app_name
     },
@@ -435,23 +440,135 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
         )
       }
     }
-    if policy.enabled && policy.daily_report_hour >= 0 {
-      let day = now / 86400000UL
-      let due_at = day * 86400000UL +
-        (policy.daily_report_hour * 3600000).to_uint64()
-      let already = match self.last_daily_report_day.get(app_name) {
-        Some(sent) => sent
+  }
+}
+
+///|
+/// Periodic targets: every `[[notify.target]]` with an `interval` gets its
+/// content rendered and delivered on its own schedule, straight through
+/// deliver_all — no event queue, no dedupe, no rate limit.
+pub async fn Supervisor::check_schedules(self : Supervisor, now : UInt64) -> Unit {
+  for app_name in self.app_names() {
+    let policy = self.project_policy(app_name)
+    if !policy.enabled {
+      continue
+    }
+    for target in policy.targets {
+      let interval = match target.interval {
+        Some(interval) => interval
+        None => continue
+      }
+      let key = app_name + "/" + target.name
+      let last = match self.schedule_last.get(key) {
+        Some(ms) => ms
         None => 0UL
       }
-      if now >= due_at && already != day {
-        self.last_daily_report_day[app_name] = day
-        self.notify.emit(
-          policy,
-          app_name,
-          self.build_report(app_name, policy, now, daily=true),
+      let due = match interval {
+        Minutes(n) => now >= last && now - last >= (n * 60000).to_uint64()
+        Hours(n) => now >= last && now - last >= (n * 3600000).to_uint64()
+        Daily(hour) => schedule_daily_hit(now, last, hour)
+        Weekly(weekday, hour) => schedule_weekly_hit(now, last, weekday, hour)
+        Monthly(day, hour) => schedule_monthly_hit(now, last, day, hour)
+      }
+      if !due {
+        continue
+      }
+      self.schedule_last[key] = now
+      let stats = target.content == Some("stats")
+      let message = self.build_report(app_name, policy, now, stats=stats)
+      let results = @notify.deliver_all(
+        lib_targets([target], policy),
+        message,
+        policy.timeout_ms,
+        self.notify.ctx,
+      )
+      for pair in results {
+        let (name, failure) = pair
+        log_event(
+          self.state_dir,
+          "bm2d.events.jsonl",
+          match failure {
+            None => "notify_sent"
+            Some(_) => "notify_target_failed"
+          },
+          app=Some(name),
+          detail=match failure {
+            None => "schedule"
+            Some(reason) => "schedule: " + reason
+          },
         )
       }
     }
+  }
+}
+
+///|
+/// The local day key (yyyymmdd in the system timezone) of a moment.
+fn local_day_key(now : UInt64) -> Int {
+  match @subproc.local_parts(now) {
+    Some((year, month, day, _, _, _)) => year * 10000 + month * 100 + day
+    None => 0
+  }
+}
+
+///|
+/// The local month key (yyyymm) of a moment.
+fn local_month_key(now : UInt64) -> Int {
+  match @subproc.local_parts(now) {
+    Some((year, month, _, _, _, _)) => year * 100 + month
+    None => 0
+  }
+}
+
+///|
+/// Daily hit: the local hour matches and this local day has not sent yet.
+fn schedule_daily_hit(now : UInt64, last : UInt64, hour : Int) -> Bool {
+  match @subproc.local_parts(now) {
+    Some((_, _, _, _, local_hour, _)) => {
+      let day_now = local_day_key(now)
+      let day_last = local_day_key(last)
+      local_hour == hour && day_now != day_last
+    }
+    None => false
+  }
+}
+
+///|
+/// Weekly hit: the local weekday matches and this local day has not sent.
+fn schedule_weekly_hit(
+  now : UInt64,
+  last : UInt64,
+  weekday : Int,
+  hour : Int,
+) -> Bool {
+  match @subproc.local_parts(now) {
+    Some((_, _, _, wday, local_hour, _)) => {
+      // cfg weekday 1~7 = Monday..Sunday; tm_wday 0=Sunday..6.
+      let weekday_ok = wday == weekday % 7
+      let day_now = local_day_key(now)
+      let day_last = local_day_key(last)
+      weekday_ok && local_hour == hour && day_now != day_last
+    }
+    None => false
+  }
+}
+
+///|
+/// Monthly hit: the local day-of-month matches and this local month has
+/// not sent yet.
+fn schedule_monthly_hit(
+  now : UInt64,
+  last : UInt64,
+  day : Int,
+  hour : Int,
+) -> Bool {
+  match @subproc.local_parts(now) {
+    Some((_, _, local_day, _, local_hour, _)) => {
+      let month_now = local_month_key(now)
+      let month_last = local_month_key(last)
+      local_day == day && local_hour == hour && month_now != month_last
+    }
+    None => false
   }
 }
 

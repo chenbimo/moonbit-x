@@ -67,9 +67,8 @@ test "parses a notify section with several targets" {
   assert_eq(notify.targets.length(), 2)
   assert_eq(notify.targets[0].name, "飞书-运维群")
   assert_eq(notify.targets[0].secret, Some("sign-key"))
-  assert_eq(notify.targets[1].to.unwrap().length(), 2)
+  assert_eq(notify.targets[1].mail_to.unwrap().length(), 2)
   assert_eq(notify.targets[1].min_level, Some("warn"))
-  assert_eq(notify.targets[1].report, Some(false))
 }
 
 ///|
@@ -197,48 +196,47 @@ test "notify errors never echo a url, secret or password" {
 }
 
 ///|
-test "daily_report_hour parses, defaults to off and validates its range" {
+test "periodic target requires content and event target rejects it" {
+  // interval without content is rejected.
+  assert_true(
+    notify_error(
+      "[notify]\n\n[[notify.target]]\nname = \"t\"\ninterval = \"5m\"\n\n[notify.target.feishu]\nurl = \"https://x/y\"\n",
+    ).contains("interval requires content"),
+  )
+  // content without interval is rejected.
+  assert_true(
+    notify_error(
+      "[notify]\n\n[[notify.target]]\nname = \"t\"\ncontent = \"health\"\n\n[notify.target.feishu]\nurl = \"https://x/y\"\n",
+    ).contains("content requires interval"),
+  )
+  // Unknown content preset is rejected.
+  assert_true(
+    notify_error(
+      "[notify]\n\n[[notify.target]]\nname = \"t\"\ninterval = \"5m\"\ncontent = \"weekly_summary\"\n\n[notify.target.feishu]\nurl = \"https://x/y\"\n",
+    ).contains("unknown value weekly_summary"),
+  )
+  // A valid periodic target parses.
   let config = @config.parse(
     project_doc(
       (
         #|[notify]
         #|enabled = true
-        #|daily_report_hour = 8
-        #|report_fields = ["status", "peak", "disk", "load"]
+        #|
+        #|[[notify.target]]
+        #|name = "health"
+        #|interval = "5m"
+        #|content = "health"
+        #|
+        #|[notify.target.feishu]
+        #|url = "https://x/y"
       ),
     ),
     "/srv/yicode",
   )
-  assert_eq(config.notify.daily_report_hour, 8)
-  assert_eq(config.notify.report_fields.length(), 4)
-  // Absent means disabled.
-  let plain = @config.parse(
-    project_doc(
-      (
-        #|[notify]
-        #|enabled = true
-      ),
-    ),
-    "/srv/yicode",
-  )
-  assert_eq(plain.notify.daily_report_hour, -1)
-  // Out of range is rejected in both directions.
-  assert_true(
-    notify_error("[notify]\ndaily_report_hour = 24\n").contains(
-      "daily_report_hour must be between",
-    ),
-  )
-  assert_true(
-    notify_error("[notify]\ndaily_report_hour = -2\n").contains(
-      "daily_report_hour is out of range",
-    ),
-  )
-  // Unknown report field stays rejected alongside the new ones.
-  assert_true(
-    notify_error("[notify]\nreport_fields = [\"peak\", \"ram\"]\n").contains(
-      "unknown value ram",
-    ),
-  )
+  let target = config.notify.targets[0]
+  assert_eq(target.platform, "feishu")
+  assert_eq(target.interval, Some(@config.Interval::Minutes(5)))
+  assert_eq(target.content, Some("health"))
 }
 
 ///|

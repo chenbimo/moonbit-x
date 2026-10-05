@@ -25,7 +25,9 @@ pub enum Bm2Msg {
   OomKill(String, Int, Int, Int)
   DiskPressure(Int, Int)
   StartTimeout(Int, Int)
-  HealthReport(String, Bool, Bool)
+  HealthReport(String, Bool)
+  StatsReport(String)
+  DaemonAdopted(Int)
 }
 
 ///|
@@ -126,14 +128,14 @@ fn render_en(msg : Bm2Msg) -> (String, String) {
         "Port never started listening",
         "No listener on port \{port} within \{timeout_ms}ms of spawn; the app may be stuck before bind().",
       )
-    HealthReport(app, daily, empty) => {
-      let title = if daily {
-        "bm2 daily report · \{app}"
-      } else {
-        "bm2 health report · \{app}"
-      }
-      (title, if empty { "No instances." } else { "" })
-    }
+    HealthReport(app, empty) =>
+      ("bm2 health report · \{app}", if empty { "No instances." } else { "" })
+    StatsReport(app) => ("bm2 statistics · \{app}", "")
+    DaemonAdopted(online) =>
+      (
+        "bm2d started",
+        "Adopted this project: \{online} online instance(s).",
+      )
   }
 }
 
@@ -224,14 +226,11 @@ fn render_zh(msg : Bm2Msg) -> (String, String) {
         "端口始终未监听",
         "spawn 后 \{timeout_ms}ms 内端口 \{port} 仍无监听；应用可能卡在 bind 之前。",
       )
-    HealthReport(app, daily, empty) => {
-      let title = if daily {
-        "bm2 日报 · \{app}"
-      } else {
-        "bm2 健康报告 · \{app}"
-      }
-      (title, if empty { "暂无实例。" } else { "" })
-    }
+    HealthReport(app, empty) =>
+      ("bm2 健康报告 · \{app}", if empty { "暂无实例。" } else { "" })
+    StatsReport(app) => ("bm2 统计报告 · \{app}", "")
+    DaemonAdopted(online) =>
+      ("bm2d 已启动", "已接管本项目：\{online} 个实例在线。")
   }
 }
 

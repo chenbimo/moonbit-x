@@ -91,3 +91,33 @@ fn valid_env_name(name : String) -> Bool {
   }
   true
 }
+
+///|
+/// Recursively expand ${VAR} across an entire parsed TOML tree: every
+/// string value, at any depth, in any table. Done once before field
+/// extraction, so no field ever needs to know about expansion.
+pub fn expand_toml_tree(
+  value : @toml.TomlValue,
+  path : String,
+) -> @toml.TomlValue raise ConfigError {
+  match value {
+    @toml.TomlString(text) => @toml.TomlString(expand_env(text, path))
+    @toml.TomlArray(items) => {
+      let out : Array[@toml.TomlValue] = []
+      for i, item in items {
+        out.push(expand_toml_tree(item, "\{path}[\{i}]"))
+      }
+      @toml.TomlArray(out)
+    }
+    @toml.TomlTable(section) => {
+      let out : Map[String, @toml.TomlValue] = Map([])
+      for pair in section.iter() {
+        let (key, item) = pair
+        let child_path = if path == "" { key } else { "\{path}.\{key}" }
+        out[key] = expand_toml_tree(item, child_path)
+      }
+      @toml.TomlTable(out)
+    }
+    other => other
+  }
+}

@@ -61,6 +61,8 @@ pub struct Supervisor {
   mut last_notify_check_ms : UInt64
   /// Per project: when its last health report went out.
   last_report_ms : Map[String, UInt64]
+  /// Periodic target key (app/name) -> when it last fired.
+  schedule_last : Map[String, UInt64]
   /// Per project: the epoch day its last daily report went out.
   last_daily_report_day : Map[String, UInt64]
   /// Per project: restart timestamps inside the storm window.
@@ -97,6 +99,7 @@ pub fn Supervisor::new(
     notify: Notifier::new(state_dir, @subproc.hostname()),
     last_notify_check_ms: 0UL,
     last_report_ms: Map([]),
+    schedule_last: Map([]),
     last_daily_report_day: Map([]),
     storm_hits: Map([]),
     start_probe_done: Map([]),
