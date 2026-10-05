@@ -50,12 +50,6 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
   check_int_range(config.max_per_minute, 0, 6000, "notify.max_per_minute")
   check_int_range(config.queue_size, 1, 4096, "notify.queue_size")
   check_int_range(
-    config.report_interval_min,
-    0,
-    10080,
-    "notify.report_interval_min",
-  )
-  check_int_range(
     config.threshold_rss_percent,
     0,
     100,

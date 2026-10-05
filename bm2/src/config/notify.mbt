@@ -8,7 +8,7 @@
 ///|
 let notifyKeys : Array[String] = [
   "enabled", "lang", "timeout_ms", "dedupe_window_s", "max_per_minute", "queue_size",
-  "events", "report_interval_min", "threshold_rss_percent", "threshold_offline_min",
+  "events", "threshold_rss_percent", "threshold_offline_min",
   "threshold_restarts", "start_timeout_ms", "threshold_disk_mb", "threshold_storm",
   "mail_url", "mail_from", "mail_username", "mail_password", "target",
 ]
@@ -140,7 +140,6 @@ pub fn parse_notify_section(
     max_per_minute: opt_int(table, "max_per_minute", "notify", 30),
     queue_size: opt_int(table, "queue_size", "notify", 128),
     events: opt_string_array(table, "events", "notify", []),
-    report_interval_min: opt_int(table, "report_interval_min", "notify", 0),
     threshold_rss_percent: opt_int(table, "threshold_rss_percent", "notify", 0),
     threshold_offline_min: opt_int(table, "threshold_offline_min", "notify", 0),
     threshold_restarts: opt_int(table, "threshold_restarts", "notify", 0),

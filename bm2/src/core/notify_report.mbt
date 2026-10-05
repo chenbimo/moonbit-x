@@ -428,21 +428,6 @@ pub fn Supervisor::check_notify(self : Supervisor, now : UInt64) -> Unit {
         )
       }
     }
-    if policy.enabled && policy.report_interval_min > 0 {
-      let interval = (policy.report_interval_min * 60000).to_uint64()
-      let last = match self.last_report_ms.get(app_name) {
-        Some(ms) => ms
-        None => 0UL
-      }
-      if last == 0UL || (now >= last && now - last >= interval) {
-        self.last_report_ms[app_name] = now
-        self.notify.emit(
-          policy,
-          app_name,
-          self.build_report(app_name, policy, now),
-        )
-      }
-    }
   }
 }
 

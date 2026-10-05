@@ -29,7 +29,6 @@ test "parses a notify section with several targets" {
         #|max_per_minute = 10
         #|queue_size = 32
         #|events = ["crash", "errored", "report"]
-        #|report_interval_min = 30
         #|report_fields = ["status", "rss", "cpu"]
         #|include_log_lines = 5
         #|threshold_rss_percent = 80
@@ -62,7 +61,6 @@ test "parses a notify section with several targets" {
   assert_eq(notify.timeout_ms, 3000)
   assert_eq(notify.dedupe_window_s, 60)
   assert_eq(notify.events.length(), 3)
-  assert_eq(notify.report_interval_min, 30)
   assert_eq(notify.threshold_restarts, 3)
   assert_eq(notify.targets.length(), 2)
   assert_eq(notify.targets[0].name, "飞书-运维群")

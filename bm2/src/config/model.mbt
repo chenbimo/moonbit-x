@@ -98,7 +98,6 @@ pub(all) struct NotifyConfig {
   max_per_minute : Int
   queue_size : Int
   events : Array[String]
-  report_interval_min : Int
   threshold_rss_percent : Int
   threshold_offline_min : Int
   threshold_restarts : Int
@@ -127,7 +126,6 @@ pub fn NotifyConfig::disabled() -> NotifyConfig {
     max_per_minute: 30,
     queue_size: 128,
     events: [],
-    report_interval_min: 0,
     threshold_rss_percent: 0,
     threshold_offline_min: 0,
     threshold_restarts: 0,
