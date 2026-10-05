@@ -332,149 +332,157 @@ jq -c . ~/.bm2/bm2d.events.jsonl
 
 ## Notifications
 
-bm2 can report what it is doing: crashes and automatic restarts, an exhausted crash budget, memory kills, a missing `reusePort` in cluster mode, lifecycle actions, plus periodic health reports and threshold alerts.
-
-Notification policy belongs to a **project** and lives in the same `bm2.toml`, as a `[notify]` table with `[[notify.target]]` entries; changes take effect on the next `bm2 start`. A project reports only its own events, to the targets it configured itself.
+bm2 can report what it is doing. Notification config belongs to a **project** and lives in the same `bm2.toml`, under `[notify]`; changes take effect on the next `bm2 start`. A project reports only its own events, to the targets it configured itself.
 
 Delivery is built in (`moonbitlang/async` + `chensuiyi/notify`, HTTPS and SMTP included); no external commands such as `curl` are needed.
 
 ```bash
 bm2 notify            # run inside the project: test every target it configures
-bm2 notify <name>     # test one target
 ```
 
-### Environment variables for credentials
+### Main section
 
-The `url`, `secret`, `username`, `password` and `from` fields accept `${VAR}` environment references, so a bm2.toml can be committed with placeholders while the real endpoint and secret stay in the environment:
+All `[notify]` fields (unless noted, all optional):
+
+| Field | Meaning | Default |
+| --- | --- | --- |
+| `enabled` | Master switch | `false` |
+| `lang` | Notification copy language: `en` / `zh` (chat messages only; CLI/logs/JSON stay English) | `en` |
+| `timeout_ms` | Per-delivery hard timeout (100~60000); also caps how long delivery blocks the supervisor | `5000` |
+| `dedupe_window_s` | Event dedupe window in seconds (0~604800): one notification per signature per window; 0 disables. Instant reports only | `3600` |
+| `max_per_minute` | Instant-report cap per minute (0~6000); excess dropped and counted; 0 unlimited | `30` |
+| `queue_size` | Instant-report queue bound (1~4096); full queue drops newest, keeps oldest | `128` |
+| `events` | Event gate (choose from the 10 below; unknown values rejected at parse) | `[]` |
+| `threshold_rss_percent` | Alert when RSS reaches this percent of the memory limit (0~100) | `0` |
+| `threshold_offline_min` | Alert when an instance stays non-online this long (0~1440) | `0` |
+| `threshold_restarts` | Consecutive abnormal restarts before an alert (0~1000) | `0` |
+| `start_timeout_ms` | Alert when the port has no listener this long after spawn (0~600000) | `0` |
+| `threshold_disk_mb` | Alert when the state filesystem has less free space (0~1048576) | `0` |
+| `threshold_storm` | Restarts within a 10-minute window before an alert (0~1000) | `0` |
+| `mail_url` | Mail channel SMTP endpoint (`smtp://` / `smtps://`); required before any email target | none |
+| `mail_from` | Envelope sender | none |
+| `mail_username` / `mail_password` | SMTP auth (optional for relays) | none |
+
+### Report entries `[[notify.report]]`
+
+Each entry = behaviour + endpoint list. Two mutually exclusive kinds:
+
+**Instant** (no `cron`): fires when a subscribed event happens; goes through dedupe, rate limiting, queue and retries.
+
+**Periodic** (`cron` + `template`): renders its template on a cron schedule and delivers straight through — no queue, no dedupe, no rate limiting. `cron` is a standard five-field expression (minute hour day month weekday) supporting `*`, `*/n`, numbers and comma lists; **day-of-month and day-of-week may not both be restricted**. `template` presets:
+
+| template | Content |
+| --- | --- |
+| `health` | Full check: one line per instance (status/port/memory/peak/CPU/uptime/restarts) plus project totals (online/abnormal/mode/port/disk/load) |
+| `stats` | Window summary: same layout, plus memory peak (`peak_mb`) and automatic restarts (`restarts`) since the previous stats push |
 
 ```toml
-[[notify.target]]
-name = "feishu-test"
-preset = "feishu"
-url = "${BM2_TEST_WEBHOOK_URL}"
-secret = "${BM2_TEST_SIGN_KEY}"
+[[notify.report]]
+name = "health-poll"
+cron = "*/5 * * * *"       # every 5 minutes
+template = "health"
+
+[[notify.report]]
+name = "daily-stats"
+cron = "0 8 * * *"         # every day 08:00
+template = "stats"
 ```
 
-- An unset variable is a hard parse error naming the variable — never a silent empty value.
-- The environment is that of the process parsing the config: `bm2 start` / `bm2 notify` use the current shell, supervised reporting uses the daemon's. A daemon's environment is frozen at its start, so after changing a variable run `bm2 reload` to swap in a fresh daemon, then `bm2 start`.
-- The daemon inherits a minimal environment (`PATH`/`HOME`/`TMPDIR`) plus every `BM2_`-prefixed variable — naming credential variables in that namespace carries them through to the daemon.
-- No other field (script, port, ...) goes through expansion; only notification credentials need it.
+`name` is required and unique within the project; `label` is optional (environment tag). Instant reports may set `events` (overrides the gate) and `min_level` (`info`/`warn`/`error`); periodic reports reject both fields.
 
-### Policy fields
+### Endpoints `[[notify.report.target]]`
 
-Everything under `[notify]` is optional; without the table the project reports nothing:
+Delivery endpoints of one report. `platform` is one of seven:
 
-| Field | Meaning | Example |
+| platform | Required | Optional |
 | --- | --- | --- |
-| `enabled` | Master switch, default `false` | `true` |
-| `lang` | Notification copy language: `en` (default) / `zh`; only chat messages are translated — CLI, logs and JSON stay language-neutral | `zh` |
-| `timeout_ms` | Hard timeout per delivery (100~60000, default 5000), also the ceiling on how long supervision can be occupied | `5000` |
-| `dedupe_window_s` | Minimum interval for one event signature (0~604800, default 3600); 0 disables dedupe | `3600` |
-| `max_per_minute` | Send limit (0~6000, default 30); excess is dropped and counted | `30` |
-| `queue_size` | This project's queue bound (1~4096, default 128); overflow drops the newest event | `128` |
-| `events` | Subscribed event names; unknown values are rejected; empty by default | `["crash","errored"]` |
-| `report_interval_min` | Periodic health report interval (0-10080 minutes, 0 disables; minimum 1 means once a minute) | `60` |
-| `report_fields` | Fields a report includes: `status`/`rss`/`cpu`/`restarts`/`uptime`/`ports`/`peak` (windowed RSS high-water mark)/`disk` (free space of the state filesystem)/`load` (1-minute system load) | `["status","rss"]` |
-| `daily_report_hour` | Hour of day (0-23, default -1 disables) for a fixed daily report; same shape as a health report plus the RSS peak since the previous daily report | `8` |
-| `include_log_lines` | Crash-log lines to attach (0~50); logs may hold secrets, so 0 by default | `0` |
-| `threshold_rss_percent` | Alert when RSS reaches this share of the limit (0~100, default 0 = off) | `80` |
-| `threshold_offline_min` | Alert when an instance stays away from online this long (0~1440, default 0 = off) | `5` |
-| `threshold_restarts` | Consecutive abnormal restarts before an alert (0-1000, 0 disables) | `5` |
-| `start_timeout_ms` | Alert when the port has no listener this long after spawn (0-600000, 0 disables) | `30000` |
-| `threshold_disk_mb` | Alert when the filesystem holding `~/.bm2` has less free space (0-1048576, 0 disables) | `1024` |
-| `threshold_storm` | Restarts (including spawn-failure retries) within a 10-minute window before an alert (0-1000, 0 disables) | `20` |
+| `feishu` | `url` | `secret`(signing)、`format` |
+| `dingtalk` | `url` | `secret`(signing)、`format` |
+| `wecom` | `url` | `format` |
+| `slack` | `url` | `format` |
+| `discord` | `url` | `format` |
+| `webhook` | `url` | `secret`(Bearer)、`format` |
+| `email` | `to`(recipients array) | `format`(endpoint/auth/sender come from the mail channel) |
 
-Every destination is one `[[notify.target]]`:
+### Events
 
-| Field | Meaning |
-| --- | --- |
-| `name` | Unique name; the only identifier that appears in logs and failure messages |
-| `preset` | Platform preset (see below) |
-| `url` | Endpoint: `http(s)://` for web platforms, `smtp(s)://` for email |
-| `secret` | Token, routing key or signing secret, where the platform wants one |
-| `username` | Email only: SMTP user name |
-| `password` | Email only |
-| `from` / `to` | Email only; `to` is an array, so several recipients are allowed |
-| `format` | `text` / `markdown` / `card`; presets fall back to what they support |
-| `events` | Per-target subscription override |
-| `min_level` | `info` / `warn` / `error` floor |
-| `report` | Whether this target receives the periodic report (default yes) |
-| `label` | Optional environment label used in messages |
+| Event | Level | Meaning |
+| --- | --- | --- |
+| `crash` | warn | Abnormal exit or spawn failure, within budget, retrying with backoff |
+| `errored` | error | Crash budget exhausted; manual `bm2 start` needed |
+| `memory_limit` | warn | RSS exceeded the limit; restarted as abnormal |
+| `oom_kill` | warn | SIGKILL with memory near the limit — attributed to the kernel OOM killer |
+| `reuseport_missing` | error | Cluster project without `reusePort`; the project is stopped |
+| `lifecycle` | info | Project start / stop / kill, and clean-exit restarts |
+| `daemon` | info | The daemon started, or a reload finished adopting this project |
+| `threshold` | warn | Memory pressure, an instance stuck away from online, restart storms |
+| `disk_pressure` | warn | Free space on the state filesystem below threshold |
+| `start_timeout` | warn | No listener on the port within the timeout after spawn |
+| `report` | — | Removed as an event: scheduled content is expressed via `cron` + `template` |
 
-Credentials live only in `bm2.toml` and daemon memory — never in the event log, state files, crash logs, CLI output or `ps`; validation errors name the field and the target index only.
+### Full example
 
-### Presets
+```toml
+[notify]
+enabled = true
+lang = "zh"
+dedupe_window_s = 60
+max_per_minute = 60
+events = ["lifecycle", "daemon", "crash", "errored", "memory_limit",
+          "reuseport_missing", "threshold", "oom_kill", "disk_pressure",
+          "start_timeout"]
+threshold_rss_percent = 80
+start_timeout_ms = 30000
+threshold_disk_mb = 1024
 
-| preset | Platform | `url` | `secret` / `username` |
-| --- | --- | --- | --- |
-| `feishu` | Feishu / Lark custom bot | webhook URL | `secret` optional (signature key) |
-| `dingtalk` | DingTalk group robot | webhook URL | `secret` optional (signing key) |
-| `wecom` | WeCom group robot | webhook URL | — |
-| `slack` | Slack incoming webhook (also Matrix / Zulip / Mattermost / Rocket.Chat) | webhook URL | — |
-| `discord` | Discord webhook | webhook URL | — |
-| `webhook` | Anything else | any http(s) URL | `secret` optional (Bearer) |
-| `email` | SMTP / SMTPS | `smtps://smtp.example.com:465` | `username` + `password` |
+mail_url = "smtps://smtp.example.com:465"
+mail_from = "bm2@example.com"
+mail_username = "bm2@example.com"
+mail_password = "${BM2_MAIL_PASSWORD}"
 
-Platforms without a preset go through `webhook`: it posts one stable JSON body (`event`/`level`/`title`/`body`/`host`/`timestamp`/`fields`) that a gateway or a function can turn into anything. Feishu, DingTalk and WeCom answer "HTTP 200 + error code in the body"; bm2 parses that body and treats a non-zero code as a failed delivery.
+# Instant: failures -> main group + on-call mail
+[[notify.report]]
+name = "failures"
+events = ["crash", "errored", "memory_limit", "oom_kill", "disk_pressure", "reuseport_missing"]
+min_level = "warn"
 
-### Events and reports
+[[notify.report.target]]
+platform = "feishu"
+url = "${BM2_MAIN_WEBHOOK_URL}"
 
-| Event | Meaning |
-| --- | --- |
-| `crash` | Abnormal exit or spawn failure still inside the restart budget |
-| `errored` | Budget exhausted; automatic recovery stopped, a human is needed |
-| `memory_limit` | RSS over the limit, restarted as an abnormal exit |
-| `reuseport_missing` | Cluster project without `reusePort`; the project is stopped |
-| `lifecycle` | Project start / stop / kill, and clean-exit restarts |
-| `daemon` | The daemon started, or a reload finished adopting this project |
-| `threshold` | Memory pressure, an instance stuck away from online, restart storms (10-minute window, `threshold_storm`) |
-| `oom_kill` | SIGKILL with the last sampled RSS at 90%+ of the limit — attributed to the kernel OOM killer; other SIGKILLs stay `crash` |
-| `disk_pressure` | Free space on the state filesystem below `threshold_disk_mb` |
-| `start_timeout` | No listener on the port within `start_timeout_ms` of spawn; the app may be stuck before bind |
-| `report` | The periodic health report |
+[[notify.report.target]]
+platform = "email"
+to = ["oncall@example.com"]
+min_level = "error"
 
-Crash notices name their cause: a cluster crash while the port is held exclusively by another process says so, and a SIGKILL with memory near its limit is reported separately as `oom_kill`. Every rejected control-channel handshake (wrong token or port probe) lands in `bm2d.events.jsonl` as `auth_failed`.
+# Periodic: health poll every 5 minutes -> monitor group
+[[notify.report]]
+name = "health-poll"
+cron = "*/5 * * * *"
+template = "health"
 
-A report covers the fields selected by `report_fields`: instance status, RSS, CPU percent (needs two samples, so the first report after a daemon restart omits it), consecutive abnormal restarts, uptime and ports, plus the windowed `peak` (the instance's highest RSS since the previous report — sampled by the memory check, cleared when a report goes out), `disk` (free space on the filesystem holding `~/.bm2`) and system `load` (1-minute load average, one entry per report). `report_interval_min` goes down to 1 — one health report per minute; thresholds and reports share the same once-a-minute evaluation tick.
+[[notify.report.target]]
+platform = "feishu"
+url = "${BM2_REPORT_WEBHOOK_URL}"
 
-`daily_report_hour` adds a fixed daily report on top: at the configured hour a report titled daily report goes out, whose instance lines carry the RSS peak since the previous daily report (a window independent of the health-report peaks). It fires at most once per calendar day.
+# Periodic: daily stats at 08:00 -> reports group
+[[notify.report]]
+name = "daily-stats"
+cron = "0 8 * * *"
+template = "stats"
+
+[[notify.report.target]]
+platform = "feishu"
+url = "${BM2_STATS_WEBHOOK_URL}"
+```
+
+`${VAR}` environment references work on **any string** in this section; an unset variable is a hard parse error naming the variable — never a silent empty value.
 
 ### Delivery behaviour
 
-- **Per project**: a project reports only its own events, to the targets from its own `[notify.target]` list. A project without `[notify]` reports nothing, and that never affects another project.
-- **Dedupe**: the signature is `event + app + instance + reason`; repeats inside `dedupe_window_s` are counted rather than sent, and the next delivery after the window notes how many were suppressed. Set `86400` for one alert per signature per day.
-- **Rate limit and ordered drops**: anything over `max_per_minute` is dropped and counted; when the queue is full the newest event is dropped, keeping the first — usually the root cause — of a burst.
-- **Retry**: only when *no* target received the message (5s, then 15s, at most three attempts). If one target succeeded, the rest are not retried, so a delivered alert is never duplicated.
-- **Delivery never affects supervision**: failures are written to `~/.bm2/bm2d.events.jsonl` (`notify_failed`, `notify_target_failed`, `notify_rate_limited`, …) and process supervision continues.
-- Feishu, DingTalk and WeCom answer "HTTP 200 + error code in the body"; bm2 parses it, treats a non-zero code as a failed delivery, and logs it to the event file.
+- **Isolated per project**: a project reports only its own events, to its own targets; no `[notify]` means fully silent.
+- **Zero credential leakage**: failure reasons, event logs and CLI output never contain a url, secret or password; validation errors name fields and indexes only.
+- **Instant reports**: dedupe -> rate limit -> queue (drops newest, keeps oldest) -> retries (5s/15s, up to 3, only when every target failed); successful deliveries are silent.
+- **Periodic reports**: delivered on schedule, straight through; failures land in the event log without retries.
+- **Chinese copy**: with `lang = "zh"` chat messages render in Chinese — every entry, including `bm2d started`.
 
-Example, appended to a project's `bm2.toml`:
-
-```toml
-name = "api"
-script = "src/index.ts"
-instances = 2
-port = 3000
-
-[notify]
-enabled = true
-events = ["crash", "errored", "memory_limit", "reuseport_missing"]
-report_interval_min = 60
-threshold_rss_percent = 80
-
-[[notify.target]]
-name = "feishu-ops"
-preset = "feishu"
-url = "https://open.feishu.cn/open-apis/bot/v2/hook/xxxx"
-min_level = "warn"
-
-[[notify.target]]
-name = "oncall-mail"
-preset = "email"
-url = "smtps://smtp.example.com:465"
-from = "bm2@example.com"
-to = ["ops@example.com", "oncall@example.com"]
-username = "bm2@example.com"
-password = "xxxx"
-min_level = "error"
-```

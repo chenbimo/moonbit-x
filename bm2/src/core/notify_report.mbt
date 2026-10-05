@@ -290,6 +290,20 @@ fn Supervisor::build_report(
     Some(kb) => fields.push(("disk_free", (kb / 1048576).to_string() + "GB"))
     None => ()
   }
+  let stats_window = if stats {
+    Some(self.take_stats_window(app_name))
+  } else {
+    None
+  }
+  if stats {
+    match stats_window {
+      Some(w) => {
+        fields.push(("peak_mb", (w.peak_kb / 1024).to_string()))
+        fields.push(("restarts", w.restarts.to_string()))
+      }
+      None => ()
+    }
+  }
   let (title, rendered_body) = render_msg(
     policy.lang,
     if stats {

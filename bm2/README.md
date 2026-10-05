@@ -349,149 +349,157 @@ jq -c . ~/.bm2/bm2d.events.jsonl
 
 ## 通知与上报
 
-bm2 可以把运行情况上报出去：崩溃与自动恢复、崩溃预算耗尽、内存超限、cluster 模式缺少 reusePort、启动/停止/注销等生命周期动作，以及定时的运行体检与阈值告警。
+bm2 可以把运行情况上报出去。通知配置属于**项目**,写在同一份 `bm2.toml` 的 `[notify]` 段;改动在下一次 `bm2 start` 时生效。项目自己只上报自己的事件,收件人也是自己配置的目标。
 
-通知配置属于**项目**，写在同一个 `bm2.toml` 里的 `[notify]` 与 `[[notify.target]]`；改动在下一次 `bm2 start` 时生效。项目自己只上报自己的事件，收件人也是自己配置的那些目标。
-
-投递由内置实现（`moonbitlang/async` + `chensuiyi/notify`，含 HTTPS 与 SMTP），不依赖 `curl` 等外部命令。
+投递由内置实现(`moonbitlang/async` + `chensuiyi/notify`,含 HTTPS 与 SMTP),不依赖 `curl` 等外部命令。
 
 ```bash
-bm2 notify            # 在项目目录执行，给该项目所有目标发一条测试消息
-bm2 notify <name>     # 只发给指定目标
+bm2 notify            # 在项目目录执行,给该项目所有目标发一条测试消息
 ```
 
-### 配置字段
+### 主配置
 
-`[notify]` 全部可选，不写这段即完全不上报：
+`[notify]` 全部字段(除注明外均可省略):
 
-| 字段 | 含义 | 示例 |
+| 字段 | 含义 | 默认 |
 | --- | --- | --- |
-| `enabled` | 总开关，默认 `false` | `true` |
-| `lang` | 通知文案语言：`en`（默认）/ `zh`；仅影响聊天群里的消息，CLI/日志/JSON 保持语言中立 | `zh` |
-| `timeout_ms` | 单条投递硬超时（100~60000，默认 5000），同时也是监督循环被占用的上限 | `5000` |
-| `dedupe_window_s` | 同一事件签名的最小重复间隔（0~604800，默认 3600），0 表示不去重 | `3600` |
-| `max_per_minute` | 发送上限（0~6000，默认 30），超限丢弃并计数；0 表示不限 | `30` |
-| `queue_size` | 该项目待发队列上限（1~4096，默认 128），满则丢最新事件并计数 | `128` |
-| `events` | 订阅的事件名，取值见事件表，未知值直接拒绝；默认空 | `["crash","errored"]` |
-| `report_interval_min` | 定期体检间隔（0~10080 分钟，默认 0 即关闭；最小 1 即每分钟一次） | `60` |
-| `report_fields` | 体检包含的字段：`status`/`rss`/`cpu`/`restarts`/`uptime`/`ports`/`peak`（窗口 RSS 峰值）/`disk`（状态目录所在盘剩余）/`load`（系统 1 分钟负载） | `["status","rss"]` |
-| `daily_report_hour` | 每日定点日报的小时（0~23，默认 -1 即关闭），内容同体检并附带自上一份日报以来的 RSS 峰值 | `8` |
-| `include_log_lines` | 崩溃通知附带 crash.log 末尾行数（0~50）；日志可能含敏感信息，默认 0 | `0` |
-| `threshold_rss_percent` | RSS 达到内存上限的百分比时告警（0~100，默认 0 即关闭） | `80` |
-| `threshold_offline_min` | 实例离开 online 超过该分钟数告警（0~1440，默认 0 即关闭） | `5` |
-| `threshold_restarts` | 连续异常重启达到该次数时告警（0~1000，默认 0 即关闭） | `5` |
-| `start_timeout_ms` | spawn 后超过该毫秒数端口仍未监听则告警（0~600000，默认 0 即关闭） | `30000` |
-| `threshold_disk_mb` | `~/.bm2` 所在文件系统剩余空间低于该 MB 数时告警（0~1048576，默认 0 即关闭） | `1024` |
-| `threshold_storm` | 10 分钟窗口内重启（含 spawn 失败重试）达到该次数时告警（0~1000，默认 0 即关闭） | `20` |
+| `enabled` | 总开关 | `false` |
+| `lang` | 通知文案语言:`en` / `zh`(仅聊天消息;CLI/日志/JSON 恒为英文) | `en` |
+| `timeout_ms` | 单条投递硬超时(100~60000),也是监督循环被占用的上限 | `5000` |
+| `dedupe_window_s` | 事件防重窗口(秒,0~604800):同签名事件 N 秒内只发一条;0 关闭。仅作用于即时上报 | `3600` |
+| `max_per_minute` | 即时上报每分钟上限(0~6000);超限丢弃并计数;0 不限 | `30` |
+| `queue_size` | 即时上报队列上限(1~4096);满时丢最新保最旧 | `128` |
+| `events` | 事件总闸(10 选 N,未知值启动报错),见下方事件表 | `[]` |
+| `threshold_rss_percent` | RSS 达内存上限百分比 → 阈值告警(0~100) | `0` |
+| `threshold_offline_min` | 实例非 online 持续分钟数 → 阈值告警(0~1440) | `0` |
+| `threshold_restarts` | 连续异常重启次数 → 阈值告警(0~1000) | `0` |
+| `start_timeout_ms` | spawn 后端口无监听毫秒数 → 启动超时告警(0~600000) | `0` |
+| `threshold_disk_mb` | 状态盘剩余 MB 下限 → 磁盘压力告警(0~1048576) | `0` |
+| `threshold_storm` | 10 分钟窗口重启次数 → 重启风暴告警(0~1000) | `0` |
+| `mail_url` | 邮件通道 SMTP 地址(`smtp://` / `smtps://`);email 目标必须先配它 | 无 |
+| `mail_from` | 邮件发件人 | 无 |
+| `mail_username` / `mail_password` | SMTP 认证(中继免认证可省) | 无 |
 
-### 凭据字段支持环境变量
+### 上报条目 `[[notify.report]]`
 
-`url`、`secret`、`username`、`password`、`from` 五个字段支持 `${VAR}` 形式的环境变量引用，因此 bm2.toml 可以只带占位符提交到仓库，真实端点与密钥留在环境里：
+每条上报 = 行为 + 端点列表,两类互斥:
+
+**即时上报**(事件驱动,无 `cron`):事件命中 `events` 时立即发,走去重/限流/队列/重试。
+
+**周期上报**(有 `cron` + `template`):按 cron 定时发模板内容,直发不经队列;`cron` 为标准五字段(分 时 日 月 周),支持 `*`、`*/n`、数字与逗号列表;**日与周不可同时受限**。`template` 预设:
+
+| template | 内容 |
+| --- | --- |
+| `health` | 全量体检:逐实例行(状态/端口/内存/峰值/CPU/运行/重启)+ 项目汇总(在线/异常/模式/端口/磁盘/负载) |
+| `stats` | 窗口统计:同体检布局,另附自上一份统计以来的内存峰值(`peak_mb`)与自动重启次数(`restarts`) |
 
 ```toml
-[[notify.target]]
-name = "feishu-test"
-preset = "feishu"
-url = "${BM2_TEST_WEBHOOK_URL}"
-secret = "${BM2_TEST_SIGN_KEY}"
+[[notify.report]]
+name = "健康巡检"
+cron = "*/5 * * * *"       # 每 5 分钟
+template = "health"
+
+[[notify.report]]
+name = "统计"
+cron = "0 8 * * *"         # 每天 8:00
+template = "stats"
 ```
 
-- 变量未设置时解析直接报错并指名变量名，绝不会静默替换成空值。
-- 环境以「解析配置的进程」为准：`bm2 start` / `bm2 notify` 用 shell 当前环境，托管期上报用守护进程的环境——守护进程环境在其启动时定格，改动环境变量后先 `bm2 reload` 换入新守护进程再 `bm2 start`。
-- 守护进程继承的是最小环境（`PATH`/`HOME`/`TMPDIR`），外加全部 `BM2_` 开头的变量——凭据变量以此命名空间命名即可穿透到守护进程。
-- 其余字段（script、port 等）不做环境变量展开，只有通知凭据需要它。
+`name` 必填且项目内唯一;`label` 可选(环境标识)。即时上报的 `events`(覆盖总闸)与 `min_level`(`info`/`warn`/`error`)可选;周期上报写这两项会被拒绝。
 
-每个目标写在 `[[notify.target]]` 里：
+### 端点 `[[notify.report.target]]`
 
-| 字段 | 含义 |
-| --- | --- |
-| `name` | 目标名，必须唯一；日志与失败提示里只出现它，不出现端点与凭据 |
-| `preset` | 平台预设，见平台表 |
-| `url` | 端点；web 平台为 `http://` 或 `https://`，邮件为 `smtp://` 或 `smtps://` |
-| `secret` | 平台要求的密钥/令牌/签名密钥（敏感） |
-| `username` | 仅邮件使用：SMTP 用户名 |
-| `password` | 仅邮件使用 |
-| `from` / `to` | 仅邮件使用；`to` 是数组，可多个收件人 |
-| `format` | `text` / `markdown` / `card`；预设不支持时按自身能力降级 |
-| `events` | 覆盖全局订阅 |
-| `min_level` | `info` / `warn` / `error`，低于该级别不发送 |
-| `report` | 该目标是否接收定期体检，默认接收 |
-| `label` | 可选，消息里的环境标识 |
+每条上报的投递端点数组,`platform` 七选一:
 
-凭据只存在于 `bm2.toml` 与守护进程内存，永远不会出现在事件日志、状态文件、crash 日志、CLI 输出或 `ps` 里；校验错误只报字段与目标下标。
+| platform | 必填 | 可选 |
+| --- | --- | --- |
+| `feishu` | `url` | `secret`(加签)、`format` |
+| `dingtalk` | `url` | `secret`(加签)、`format` |
+| `wecom` | `url` | `format` |
+| `slack` | `url` | `format` |
+| `discord` | `url` | `format` |
+| `webhook` | `url` | `secret`(Bearer)、`format` |
+| `email` | `to`(收件人数组) | `format`(url/发件人/认证来自 mail_* 通道) |
 
-### 平台预设
+### 事件与内容
 
-| preset | 平台 | `url` | `secret` / `username` |
-| --- | --- | --- | --- |
-| `feishu` | 飞书 / Lark 自定义机器人 | webhook 地址 | `secret` 可选（签名密钥） |
-| `dingtalk` | 钉钉群机器人 | webhook 地址 | `secret` 可选（加签密钥） |
-| `wecom` | 企业微信群机器人 | webhook 地址 | — |
-| `slack` | Slack incoming webhook（兼容 Matrix / Zulip / Mattermost / Rocket.Chat） | webhook 地址 | — |
-| `discord` | Discord webhook | webhook 地址 | — |
-| `webhook` | 任意自建/其他平台 | 任意 http(s) 地址 | `secret` 可选（Bearer） |
-| `email` | SMTP / SMTPS | `smtps://smtp.example.com:465` | `username` + `password` |
+| 事件 | 级别 | 含义 |
+| --- | --- | --- |
+| `crash` | warn | 异常退出或启动失败,未超预算,退避重试中 |
+| `errored` | error | 崩溃预算耗尽,需人工 `bm2 start` |
+| `memory_limit` | warn | RSS 超上限,按异常重启处理 |
+| `oom_kill` | warn | SIGKILL 且内存逼近上限,判定内核 OOM killer |
+| `reuseport_missing` | error | cluster 未开 reusePort,项目被停 |
+| `lifecycle` | info | 项目启动/停止/注销,干净退出自动重启 |
+| `daemon` | info | 守护进程启动/reload 后本项目被接管 |
+| `threshold` | warn | 内存逼近/离线过久/重启过频/重启风暴 |
+| `disk_pressure` | warn | 状态盘剩余空间不足 |
+| `start_timeout` | warn | spawn 后端口始终未监听 |
+| `report` | — | 已移出事件:定时内容改由 `cron` + `template` 表达 |
 
-没有内置预设的平台走 `webhook`：它发送固定形状的 JSON（`event`/`level`/`title`/`body`/`host`/`timestamp`/`fields`），自建网关或函数把它转成任何平台的格式都行。飞书、钉钉、企业微信的“HTTP 200 + 响应体错误码”会被解析，非零错误码按投递失败处理。
+### 完整示例
 
-### 事件与体检
+```toml
+[notify]
+enabled = true
+lang = "zh"
+dedupe_window_s = 60
+max_per_minute = 60
+events = ["lifecycle", "daemon", "crash", "errored", "memory_limit",
+          "reuseport_missing", "threshold", "oom_kill", "disk_pressure",
+          "start_timeout"]
+threshold_rss_percent = 80
+start_timeout_ms = 30000
+threshold_disk_mb = 1024
 
-| 事件 | 说明 |
-| --- | --- |
-| `crash` | 异常退出或启动失败，尚未耗尽预算，会退避重试 |
-| `errored` | 崩溃预算耗尽，已停止自动恢复，需要人工介入 |
-| `memory_limit` | RSS 超过上限，按异常重启处理 |
-| `reuseport_missing` | cluster 项目未开启 reusePort，整个项目被停止 |
-| `lifecycle` | 项目启动 / 停止 / 注销，以及干净退出后的自动重新拉起 |
-| `daemon` | 守护进程启动或 reload 换入后，本项目已被接管 |
-| `threshold` | 内存接近上限、实例长时间未恢复、重启过频、重启风暴（10 分钟窗口，`threshold_storm`） |
-| `oom_kill` | SIGKILL 且最后采样 RSS 达上限 90% 以上，判定为内核 OOM killer；其余 SIGKILL 仍归 `crash` |
-| `disk_pressure` | 状态目录所在文件系统剩余空间低于 `threshold_disk_mb` |
-| `start_timeout` | spawn 后 `start_timeout_ms` 内端口始终无人监听，应用可能卡在 bind 之前 |
-| `report` | 定期体检 |
+mail_url = "smtps://smtp.example.com:465"
+mail_from = "bm2@example.com"
+mail_username = "bm2@example.com"
+mail_password = "${BM2_MAIL_PASSWORD}"
 
-崩溃类通知会指认原因：cluster 项目崩溃时若检测到端口被其他进程独占，正文会注明端口冲突；SIGKILL 且内存逼近上限会以 `oom_kill` 单独上报。控制通道的每次握手失败（错误令牌或端口探测）都会写入 `bm2d.events.jsonl` 的 `auth_failed` 事件。
+# 即时上报:故障 → 主群 + 值班邮件
+[[notify.report]]
+name = "故障告警"
+events = ["crash", "errored", "memory_limit", "oom_kill", "disk_pressure", "reuseport_missing"]
+min_level = "warn"
 
-体检内容取决于 `report_fields`：实例状态、RSS、CPU 百分比（需要两次采样，守护进程重启后的首次不显示）、连续异常次数、运行时长、端口，以及窗口峰值 `peak`（自上一份报告以来该实例 RSS 的最高水位，采样随内存检查每轮进行，报告后清零）、磁盘 `disk`（`~/.bm2` 所在文件系统的剩余空间）与系统负载 `load`（1 分钟 load average，守护进程级，每份一条）。`report_interval_min` 最小为 1，即每分钟一次体检；阈值与体检共用每分钟一次的评估节拍。
+[[notify.report.target]]
+platform = "feishu"
+url = "${BM2_MAIN_WEBHOOK_URL}"
 
-`daily_report_hour` 在体检之外提供每日定点日报：到点发一份标题为 daily report 的报告，实例行携带自上一份日报以来的 RSS 峰值（独立于体检峰值窗口），同一自然日只发一次。
+[[notify.report.target]]
+platform = "email"
+to = ["oncall@example.com"]
+min_level = "error"
+
+# 周期上报:健康巡检每 5 分钟 → 监控群
+[[notify.report]]
+name = "健康巡检"
+cron = "*/5 * * * *"
+template = "health"
+
+[[notify.report.target]]
+platform = "feishu"
+url = "${BM2_REPORT_WEBHOOK_URL}"
+
+# 周期上报:每日 8 点统计 → 报表群
+[[notify.report]]
+name = "每日统计"
+cron = "0 8 * * *"
+template = "stats"
+
+[[notify.report.target]]
+platform = "feishu"
+url = "${BM2_STATS_WEBHOOK_URL}"
+```
+
+`${VAR}` 环境变量可在本段**任何字符串**使用;变量未设置时解析报错并指名,绝不静默空值。
 
 ### 上报行为
 
-- **按项目隔离**：每个项目只上报自己的事件，收件人只来自自己的 `[notify.target]`；一个项目没配 `[notify]` 就完全不上报，互不影响。
-- **去重**：`事件 + 应用 + 实例 + 原因` 作为签名，`dedupe_window_s` 内只发第一条，其余累加；窗口过期后再发时会在正文里注明上一个窗口的累计次数。填 `86400` 即为“同一签名每天一条”。
-- **限流与有序丢弃**：每分钟上限之外的条目被丢弃并计数；队列满时丢的是最新事件，保留突发里最早、通常也是根因的那几条。
-- **重试**：只有“所有目标都没收到”才重试（5s、15s，最多 3 次）；只要有一个目标成功就不再重试，避免对已收到的目标重复打扰。
-- **发送失败不影响托管**：失败只写 `~/.bm2/bm2d.events.jsonl`（`notify_failed`、`notify_target_failed`、`notify_rate_limited` 等），进程监督照常进行。
-- 飞书、钉钉、企业微信的应答是“HTTP 200 + 响应体错误码”，bm2 会解析它：非零错误码视为投递失败并记入事件日志，`code`/`errcode` 为 0 才算成功。
+- **按项目隔离**:每个项目只上报自己的事件,收件人只来自自己的配置;一个项目没配 `[notify]` 就完全不上报。
+- **凭据零泄露**:失败原因、事件日志、CLI 输出永不包含 url / secret / password;校验错误只报字段与下标。
+- **即时上报**:去重 → 限流 → 队列(丢最新保最旧)→ 重试(全败才重试,5s/15s 最多 3 次);发送成功静默。
+- **周期上报**:到点直发,不经去重限流;失败记事件日志不重试。
+- **中文文案**:`lang = "zh"` 后聊天消息为中文(启动/崩溃/统计报告等),`bm2d started` 等全部条目覆盖。
 
-配置示例（写在项目的 `bm2.toml` 末尾）：
-
-```toml
-name = "api"
-script = "src/index.ts"
-instances = 2
-port = 3000
-
-[notify]
-enabled = true
-events = ["crash", "errored", "memory_limit", "reuseport_missing"]
-report_interval_min = 60
-threshold_rss_percent = 80
-
-[[notify.target]]
-name = "飞书-运维群"
-preset = "feishu"
-url = "https://open.feishu.cn/open-apis/bot/v2/hook/xxxx"
-min_level = "warn"
-
-[[notify.target]]
-name = "值班邮件"
-preset = "email"
-url = "smtps://smtp.example.com:465"
-from = "bm2@example.com"
-to = ["ops@example.com", "oncall@example.com"]
-username = "bm2@example.com"
-password = "xxxx"
-min_level = "error"
-```

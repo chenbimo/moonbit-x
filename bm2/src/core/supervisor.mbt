@@ -61,6 +61,9 @@ pub struct Supervisor {
   mut last_notify_check_ms : UInt64
   /// Periodic target key (app/name) -> when it last fired.
   schedule_last : Map[String, UInt64]
+  /// Per project: rolling stats window since the last stats push
+  /// (peak sampled RSS in kB, automatic restarts).
+  stats_window : Map[String, StatsWindow]
   /// Per project: the epoch day its last daily report went out.
   last_daily_report_day : Map[String, UInt64]
   /// Per project: restart timestamps inside the storm window.
@@ -68,6 +71,49 @@ pub struct Supervisor {
   /// Instance key → the spawn generation (started_at_ms) already probed
   /// for a missing listener, so each spawn is judged once.
   start_probe_done : Map[String, UInt64]
+}
+
+///|
+/// Rolling aggregation for one project's stats reports: the sampled RSS
+/// high-water mark and the automatic restart count since the last push.
+pub(all) struct StatsWindow {
+  peak_kb : Int
+  restarts : Int
+} derive(Debug)
+
+///|
+pub extend StatsWindow with Debug::{to_repr}
+
+///|
+/// Fold an RSS sample into the project's stats window.
+fn Supervisor::record_stats_peak(self : Supervisor, app_name : String, kb : Int) -> Unit {
+  match self.stats_window.get(app_name) {
+    Some(w) =>
+      if kb > w.peak_kb {
+        self.stats_window[app_name] = { ..w, peak_kb: kb }
+      }
+    None => self.stats_window[app_name] = { peak_kb: kb, restarts: 0 }
+  }
+}
+
+///|
+/// Count one automatic restart into the project's stats window.
+fn Supervisor::record_stats_restart(self : Supervisor, app_name : String) -> Unit {
+  match self.stats_window.get(app_name) {
+    Some(w) => self.stats_window[app_name] = { ..w, restarts: w.restarts + 1 }
+    None => self.stats_window[app_name] = { peak_kb: 0, restarts: 1 }
+  }
+}
+
+///|
+/// Take (and clear) the project's stats window.
+fn Supervisor::take_stats_window(self : Supervisor, app_name : String) -> StatsWindow {
+  let w = match self.stats_window.get(app_name) {
+    Some(w) => w
+    None => { peak_kb: 0, restarts: 0 }
+  }
+  self.stats_window[app_name] = { peak_kb: 0, restarts: 0 }
+  w
 }
 
 ///|
@@ -97,6 +143,7 @@ pub fn Supervisor::new(
     notify: Notifier::new(state_dir, @subproc.hostname()),
     last_notify_check_ms: 0UL,
     schedule_last: Map([]),
+    stats_window: Map([]),
     last_daily_report_day: Map([]),
     storm_hits: Map([]),
     start_probe_done: Map([]),
@@ -714,6 +761,7 @@ fn Supervisor::counted_exit(
   inst.last_reason = Some(reason)
   self.write_crash(inst, reason)
   self.record_storm_hit(app.name, now)
+  self.record_stats_restart(app.name)
   let detail = exit_detail(inst)
   let lang = app.notify.lang
   let cause = crash_cause(
@@ -956,6 +1004,7 @@ fn Supervisor::check_memory(self : Supervisor) -> Unit {
               inst.app_name + "/" + inst.instance_id.to_string(),
               kb,
             )
+            self.record_stats_peak(inst.app_name, kb)
             if kb > app.max_memory_mb * 1024 {
               inst.last_rss_kb = kb
               log_event(
@@ -1193,6 +1242,7 @@ fn Supervisor::mark_spawn_failed(self : Supervisor, inst : Instance) -> Unit {
   inst.last_reason = Some("spawn_failed")
   self.write_crash(inst, "spawn_failed")
   self.record_storm_hit(inst.app_name, @dateku.now_ms())
+  self.record_stats_restart(inst.app_name)
   let app = match self.apps.get(inst.app_name) {
     Some(app) => app
     None => return
