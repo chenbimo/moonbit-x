@@ -173,6 +173,35 @@ async fn run() -> Int {
     }
     pins.push((item.name, next))
     println("bumped \{item.name}: \{item.version} -> \{next}")
+    // Keep the CLI's VERSION constant in lockstep with moon.mod (bm2's verify
+    // gate enforces this), so a release never leaves them drifted.
+    let cli_main = item.dir + "/src/cmd/bm2/main.mbt"
+    let cli_text = try @fs.read_file_to_string(cli_main) catch {
+      _ => ""
+    } noraise {
+      t => t
+    }
+    let marker = "const VERSION : String = \"\{item.version}\""
+    if cli_text.contains(marker) {
+      let next_const = "const VERSION : String = \"\{next}\""
+      try
+        @fs.write_string_to_file(
+          cli_main,
+          cli_text.replace(
+            old=marker[0:marker.length()],
+            new=next_const[0:next_const.length()],
+          ),
+        )
+      catch {
+        _ => {
+          println("release: cannot write \{cli_main}")
+          return 1
+        }
+      } noraise {
+        _ => ()
+      }
+      println("synced VERSION constant in \{item.name}")
+    }
   }
   // 2. Sync item pins into every member's manifest with our own rewriting
   // (no moon work sync): deterministic, visible in dry-run, and validated
@@ -196,9 +225,26 @@ async fn run() -> Int {
       println("synced pins in \{item.name}")
     }
   }
-  // 3. Publish dependencies first.
+  // 3. Publish dependencies first. Each `moon update` refreshes the local
+  // registry index, so a module published seconds ago is visible to the
+  // dependents publishing after it.
   for item in order {
     println("publishing \{item.name} ...")
+    let update = try
+      @process.collect_output("moon", ["update"], cwd=item.dir)
+    catch {
+      e => {
+        println("release: cannot run moon update for \{item.name}: \{e}")
+        return 1
+      }
+    } noraise {
+      output => output
+    }
+    if update.0 != 0 {
+      println("release: \{item.name} moon update failed (exit \{update.0})")
+      println(@utf8.decode_lossy(update.2.binary()))
+      return 1
+    }
     let result = try
       @process.collect_output("moon", ["publish"], cwd=item.dir)
     catch {
