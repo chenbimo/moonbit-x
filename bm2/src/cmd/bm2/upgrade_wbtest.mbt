@@ -11,19 +11,21 @@ test "latest_version returns the last parseable line" {
 
 ///|
 test "upgrade only fires when the published version is newer" {
-  let index = "{\"version\":\"0.5.0\"}\n{\"version\":\"0.5.1\"}\n"
+  // 版本号相对当前 VERSION 动态构造,避免每次发版手动同步测试。
+  let v = @semver.parse(VERSION)
+  let newer = "\{v.major}.\{v.minor}.\{v.patch + 1}"
+  let older = "\{v.major}.\{v.minor - 1}.\{v.patch}"
+  let index = "{\"version\":\"" +
+    older +
+    "\"}\n{\"version\":\"" +
+    newer +
+    "\"}\n"
   let latest = match latest_version(index) {
     Some(version) => version
     None => fail("expected a published version")
   }
-  // 索引里最新的是 0.5.1,比当前 0.5.0 新:升级应触发。
-  assert_true(
-    @semver.compare(@semver.parse(latest), @semver.parse(VERSION)) > 0,
-  )
-  assert_true(
-    @semver.compare(@semver.parse("0.5.2"), @semver.parse(VERSION)) > 0,
-  )
-  assert_true(
-    @semver.compare(@semver.parse("0.4.9"), @semver.parse(VERSION)) < 0,
-  )
+  // 索引里最新的是 newer,比当前新:升级应触发。
+  assert_true(@semver.compare(@semver.parse(latest), v) > 0)
+  assert_true(@semver.compare(@semver.parse(newer), v) > 0)
+  assert_true(@semver.compare(@semver.parse(older), v) < 0)
 }
