@@ -337,14 +337,25 @@ async fn cmd_notify(
     return @core.Response::error(
       "project " +
       config.name +
-      " has no notifications enabled: set [notify].enabled = true and add at least one [[notify.target]] in bm2.toml",
+      " has no notifications enabled: set [notify].enabled = true and add at least one [[notify.report.target]] in bm2.toml",
     )
   }
   let endpoints = []
   for report in policy.reports {
+    if req.notify_target is Some(want) && report.name != want {
+      continue
+    }
     for endpoint in report.targets {
       endpoints.push(endpoint)
     }
+  }
+  if endpoints.is_empty() {
+    return @core.Response::error(
+      match req.notify_target {
+        Some(name) => "unknown notification target: " + name
+        None => "no notification targets configured"
+      },
+    )
   }
   let results = sv
     .notifier()

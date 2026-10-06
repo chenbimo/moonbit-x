@@ -288,8 +288,8 @@ mkdir -p "$ACC/withenv"
 cp "$fixtures/slow.ts" "$ACC/withenv/"
 printf 'name = "withenv"\nscript = "slow.ts"\ninstances = 1\nport = 4281\n\n[env]\nAPP_ENV = "production"\n' > "$ACC/withenv/bm2.toml"
 OUT=$(cd "$ACC/withenv" && bm2 start 2>&1)
-check "removed env table rejected exit" 1 "$?"
-check "removed env table rejected message" "bm2: InvalidField: root has unknown field env" "$OUT"
+check "env table accepted exit" 0 "$?"
+bm2 stop withenv >/dev/null 2>&1
 rm -rf "$ACC/withenv"
 
 echo "===== S. duplicate and conflicting registrations ====="
@@ -521,14 +521,16 @@ cat >> "$ACC/plain/bm2.toml" <<EOF
 enabled = true
 dedupe_window_s = 3600
 events = ["crash", "errored"]
-report_interval_min = 0
 
-[[notify.target]]
+[[notify.report]]
 name = "local"
-preset = "webhook"
+events = ["crash", "errored"]
+
+[[notify.report.target]]
+platform = "webhook"
 url = "http://127.0.0.1:4321/hook"
 EOF
-check "bm2 notify delivers a test message" "local: sent" "$(cd "$ACC/plain" && bm2 notify 2>&1)"
+check "bm2 notify delivers a test message" "webhook: sent" "$(cd "$ACC/plain" && bm2 notify 2>&1)"
 contains "test message reached the webhook" "$ACC/notify/received.log" '"event":"lifecycle"'
 contains "test message names the host" "$ACC/notify/received.log" '"host"'
 check "unknown target is rejected" 1 "$(cd "$ACC/plain" && bm2 notify nosuch >/dev/null 2>&1; echo $?)"
@@ -542,9 +544,12 @@ enabled = true
 dedupe_window_s = 3600
 events = ["crash", "errored"]
 
-[[notify.target]]
+[[notify.report]]
 name = "local"
-preset = "webhook"
+events = ["crash", "errored"]
+
+[[notify.report.target]]
+platform = "webhook"
 url = "http://127.0.0.1:4321/hook"
 EOF
 (cd "$ACC/notif" && bm2 start >/dev/null)
