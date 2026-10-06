@@ -14,6 +14,12 @@
 - **产品文案**:面向全球开发者,CLI 帮助/输出/错误与通知文案统一英文,不做 i18n;README 用单文件内嵌双语(notify/release 模式);事件日志与状态文件保持语言中立键
 - **可执行成员布局**:命令 main 放 `src/cmd/<命令名>` 子包,二进制名与目录名一致(bm2 与 release 模式);本地安装走各成员 `scripts/install-local.sh`(构建 + 装入 `~/.local/bin`,安装态运行,不用 moon run 发包)
 
+## bm2d 监督循环(严格遵守)
+
+- tick(50ms)内新增的周期性检查**必须自带时间闸**(参考 `check_notify` 的 `NOTIFY_CHECK_INTERVAL_MS` 模式):cron 分钟粒度检查用 60s 闸,重扫描用各自间隔闸;无闸的周期检查不予合入
+- 到期/事件型检查(deadline/pending/removals 等)不加闸,但必须保证重复调用幂等
+- 通知投递保持在 tick 内同步执行(上限 `timeout_ms`),不得挪为独立任务——supervisor 变更的单写者串行模型是正确性根基
+
 ## 测试粒度
 
 验证分三档,由内向外升级,**禁止拿全量当快检**(每改一步跑一次全量是错误用法):

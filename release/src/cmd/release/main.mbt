@@ -185,9 +185,7 @@ async fn run() -> Int {
     }
     let synced = @mwork.sync_pins(text, pins)
     if synced != text {
-      try
-        @fs.write_string_to_file(item.dir + "/moon.mod", synced)
-      catch {
+      try @fs.write_string_to_file(item.dir + "/moon.mod", synced) catch {
         _ => {
           println("release: cannot write \{item.dir}/moon.mod")
           return 1
