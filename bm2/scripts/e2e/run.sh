@@ -485,6 +485,26 @@ check "second daemon message" "bm2d: another daemon is already running" "$OUT"
 check "first daemon still alive" 0 "$(kill -0 "$DPID" 2>/dev/null; echo $?)"
 check "lock file present" 1 "$([ -f "$state_dir/bm2d.lock" ] && echo 1 || echo 0)"
 
+echo "===== AB2. bm2 check validates a project config ====="
+write_project ck ck 4341 slow.ts 1 1000
+OUT=$(cd "$ACC/ck" && bm2 check 2>&1)
+check "check passes a valid config exit" 0 "$?"
+check "check summary names the project" 1 "$(echo "$OUT" | grep -c 'config ok: project "ck"')"
+check "check summary counts notify disabled" 1 "$(echo "$OUT" | grep -c 'notify: disabled')"
+rm "$ACC/ck/slow.ts"
+OUT=$(cd "$ACC/ck" && bm2 check 2>&1)
+check "check rejects a missing script exit" 1 "$?"
+check "check names the missing script" "bm2: script not found: $ACC/ck/slow.ts" "$OUT"
+printf 'name = "ck"
+script = "slow.ts"
+instances = 1
+port = 4341
+nope = 1
+' > "$ACC/ck/bm2.toml"
+OUT=$(cd "$ACC/ck" && bm2 check 2>&1)
+check "check rejects an unknown field exit" 1 "$?"
+rm -rf "$ACC/ck"
+
 echo "===== AC. notifications: webhook delivery, dedupe, and bm2 notify ====="
 bm2 kill -y >/dev/null 2>&1
 sleep 1

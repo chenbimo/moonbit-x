@@ -28,7 +28,7 @@ Chinese version: [README.md](README.md)
 
 - One `bm2.toml` configures **one project** (a single app with one or more independent instances).
 - Crash restart budget, memory limit, graceful stop timeout, persisted state, and token-guarded loopback TCP control.
-- Commands: `start`, `kill`, `list`, `reload`, `upgrade`, `version`.
+- Commands: `start`, `kill`, `list`, `check`, `reload`, `upgrade`, `version`.
 - `start` always performs a full restart for its project.
 
 It does not manage Nginx, domains, certificates, hot reload, boot startup, or remote administration.

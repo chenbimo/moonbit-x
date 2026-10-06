@@ -36,7 +36,7 @@ bm2 由命令行工具和后台守护进程组成，命令行通过本机 TCP + 
 **进程托管**
 
 - 一个 `bm2.toml` 配置**一个项目**（单个应用，一个或多个独立实例，上限 1024）。
-- 命令：`start`、`kill`、`list`、`reload`、`upgrade`、`version`、`notify`。
+- 命令：`start`、`kill`、`list`、`check`、`reload`、`upgrade`、`version`、`notify`。
 - 优雅停止：SIGTERM 宽限期后 SIGKILL；`start` 总是对其项目执行一次完整重启。
 
 **监督与自愈**
@@ -341,6 +341,10 @@ bm2d.events.jsonl                # 守护进程与监督事件
 它们**不**包含环境变量值、协议载荷或应用输出。
 
 常用命令：
+
+```bash
+bm2 check            # 校验当前目录 bm2.toml:解析、字段强校验、${VAR} 展开、脚本存在性
+```
 
 ```bash
 tail -f ~/.bm2/bm2d.events.jsonl

@@ -53,6 +53,10 @@ async fn run() -> Int {
         positionals=[optional_name("Limit to this project")],
       ),
       @argparse.Command(
+        "check",
+        about="Validate the bm2.toml in the current directory",
+      ),
+      @argparse.Command(
         "reload",
         about="Restart the daemon with a new binary; apps keep running",
       ),
@@ -97,6 +101,7 @@ async fn run() -> Int {
       println("bm2 " + VERSION)
       return 0
     }
+    "check" => return cmd_check()
     _ => ()
   }
   // `-y` 专属于"停止 bm2d 与全部应用";与项目名同时出现视为用法错误。
