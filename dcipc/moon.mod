@@ -1,6 +1,6 @@
 name = "chensuiyi/dcipc"
 
-version = "0.1.0"
+version = "0.3.0"
 
 source = "src"
 
@@ -20,5 +20,5 @@ repository = "https://github.com/chenbimo/moonbit"
 
 import {
   "moonbitlang/async@0.22.4",
-  "chensuiyi/fsx@0.1.0",
+  "chensuiyi/fsx@0.3.0",
 }

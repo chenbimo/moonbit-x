@@ -1,6 +1,6 @@
 name = "chensuiyi/mwork"
 
-version = "0.1.0"
+version = "0.3.0"
 
 source = "src"
 
@@ -20,5 +20,5 @@ repository = "https://github.com/chenbimo/moonbit"
 
 import {
   "moonbitlang/moon_config@0.4.2",
-  "chensuiyi/fndash@0.1.0",
+  "chensuiyi/fndash@0.3.0",
 }
