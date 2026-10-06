@@ -24,9 +24,13 @@ fn wb_report(
 }
 
 ///|
-fn wb_message(level : String, ts_ms : UInt64) -> @notify.Message {
+fn wb_message(
+  event : String,
+  level : String,
+  ts_ms : UInt64,
+) -> @notify.Message {
   @notify.Message::new(
-    "crash",
+    event,
     level,
     "api · Abnormal exit, restarting automatically",
     "exit code 1",
@@ -61,9 +65,12 @@ test "dedupe counts repeats and the rate limit drops the rest" {
       #|queue_size = 8
       #|events = ["crash"]
       #|
-      #|[[notify.target]]
+      #|[[notify.report]]
       #|name = "t"
-      #|preset = "webhook"
+      #|events = ["crash"]
+      #|
+      #|[[notify.report.target]]
+      #|platform = "webhook"
       #|url = "http://127.0.0.1:9/hook"
       #|
     ),
@@ -71,9 +78,9 @@ test "dedupe counts repeats and the rate limit drops the rest" {
   let notifier = wb_notifier("dedupe")
   assert_true(policy.enabled)
   // Same signature inside the window: queued once, the rest counted.
-  notifier.emit(policy, "api", wb_message("warn", 1000UL))
-  notifier.emit(policy, "api", wb_message("warn", 2000UL))
-  notifier.emit(policy, "api", wb_message("warn", 3000UL))
+  notifier.emit(policy, "api", wb_message("crash", "warn", 1000UL))
+  notifier.emit(policy, "api", wb_message("crash", "warn", 2000UL))
+  notifier.emit(policy, "api", wb_message("crash", "warn", 3000UL))
   assert_eq(notifier.queued(), 1)
   // A different signature is a different event.
   notifier.emit(
@@ -97,9 +104,12 @@ test "rate limiting and queue overflow are counted, never unbounded" {
       #|queue_size = 2
       #|events = ["crash"]
       #|
-      #|[[notify.target]]
+      #|[[notify.report]]
       #|name = "t"
-      #|preset = "webhook"
+      #|events = ["crash"]
+      #|
+      #|[[notify.report.target]]
+      #|platform = "webhook"
       #|url = "http://127.0.0.1:9/hook"
       #|
     ),
@@ -162,12 +172,15 @@ test "per-report subscriptions and level floors are honoured" {
     },
     template="health",
   )
-  assert_false(wants(quiet, config, wb_message("warn", 1000UL)))
-  assert_true(wants(quiet, config, wb_message("error", 1000UL)))
-  assert_false(wants(crashing, config, wb_message("warn", 1000UL)))
-  assert_true(wants(crashing, config, wb_message("error", 1000UL)))
+  // Level floor: warn sits below the error floor.
+  assert_false(wants(quiet, config, wb_message("crash", "warn", 1000UL)))
+  assert_true(wants(quiet, config, wb_message("crash", "error", 1000UL)))
+  // Subscription: errored is not in these reports' events list.
+  assert_false(wants(crashing, config, wb_message("errored", "warn", 1000UL)))
+  // No level floor on crashing: any level of a subscribed event passes.
+  assert_true(wants(crashing, config, wb_message("crash", "warn", 1000UL)))
   // Periodic reports never take events, whatever their own subscription.
-  assert_false(wants(periodic, config, wb_message("error", 1000UL)))
+  assert_false(wants(periodic, config, wb_message("crash", "error", 1000UL)))
 }
 
 ///|
@@ -179,9 +192,12 @@ async test "a failed delivery reports a reason without the credential" {
       #|queue_size = 4
       #|events = ["crash"]
       #|
-      #|[[notify.target]]
+      #|[[notify.report]]
       #|name = "dead"
-      #|preset = "webhook"
+      #|events = ["crash"]
+      #|
+      #|[[notify.report.target]]
+      #|platform = "webhook"
       #|url = "http://127.0.0.1:9/hook?token=SECRET"
       #|secret = "TOPSECRET"
       #|
@@ -202,7 +218,7 @@ async test "a failed delivery reports a reason without the credential" {
   )
   assert_eq(results.length(), 1)
   let (name, failure) = results[0]
-  assert_eq(name, "dead")
+  assert_eq(name, "webhook")
   let reason = match failure {
     Some(reason) => reason
     None => fail("expected the unreachable target to fail")

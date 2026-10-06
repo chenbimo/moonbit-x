@@ -131,7 +131,18 @@ pub fn validate_notify(config : NotifyConfig) -> Unit raise ConfigError {
               )
           }
         }
-        _ => check_web_scheme(endpoint.url, endpoint_ctx)
+        "feishu" | "dingtalk" | "wecom" | "slack" | "discord" | "webhook" => {
+          check_web_scheme(endpoint.url, endpoint_ctx)
+          if endpoint.mail_to is Some(_) {
+            raise ConfigError::InvalidField(
+              "\{endpoint_ctx}.to is not used by this platform",
+            )
+          }
+        }
+        _ =>
+          raise ConfigError::InvalidField(
+            "\{endpoint_ctx}.platform has unknown value \{endpoint.platform}",
+          )
       }
     }
   }

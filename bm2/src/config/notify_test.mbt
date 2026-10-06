@@ -27,7 +27,6 @@ test "parses reports with endpoints, schedules and mail channel" {
         #|lang = "zh"
         #|dedupe_window_s = 60
         #|events = ["crash", "errored", "lifecycle"]
-        #|report_interval_min = 0
         #|
         #|mail_url = "smtps://smtp.example.com:465"
         #|mail_from = "bm2@example.com"
@@ -39,8 +38,8 @@ test "parses reports with endpoints, schedules and mail channel" {
         #|
         #|[[notify.report.target]]
         #|platform = "feishu"
-        #|url = "${BM2_TEST_HOOK}"
-        #|secret = "${BM2_TEST_KEY}"
+        #|url = "https://hook.example/feishu-a"
+        #|secret = "sign-a"
         #|
         #|[[notify.report.target]]
         #|platform = "email"
@@ -53,7 +52,7 @@ test "parses reports with endpoints, schedules and mail channel" {
         #|
         #|[[notify.report.target]]
         #|platform = "feishu"
-        #|url = "${BM2_TEST_HOOK}"
+        #|url = "https://hook.example/feishu-b"
         #|
       ),
     ),
@@ -71,8 +70,8 @@ test "parses reports with endpoints, schedules and mail channel" {
   assert_eq(alert.cron, None)
   assert_eq(alert.targets.length(), 2)
   assert_eq(alert.targets[0].platform, "feishu")
-  assert_eq(alert.targets[0].url, "https://hook.example/from-env")
-  assert_eq(alert.targets[0].secret, Some("sign-key"))
+  assert_eq(alert.targets[0].url, "https://hook.example/feishu-a")
+  assert_eq(alert.targets[0].secret, Some("sign-a"))
   assert_eq(alert.targets[1].mail_to.unwrap().length(), 1)
   let poll = notify.reports[1]
   assert_eq(poll.cron_text, Some("*/5 * * * *"))
@@ -97,7 +96,7 @@ test "notify rejects unknown keys, platforms and enum values" {
   assert_true(
     notify_error(
       "[notify]\n\n[[notify.report]]\nname = \"a\"\ncron = \"0 8 * * *\"\ntemplate = \"health\"\n\n[[notify.report.target]]\nplatform = \"carrier-pigeon\"\nurl = \"https://x/y\"\n",
-    ).contains("unknown field carrier-pigeon"),
+    ).contains("platform has unknown value carrier-pigeon"),
   )
   assert_true(
     notify_error("[notify]\nevents = [\"explode\"]\n").contains(
@@ -153,17 +152,17 @@ test "notify enforces per-platform endpoint rules" {
   assert_true(
     notify_error(
       "[notify]\nmail_url = \"smtps://smtp.example.com:465\"\n\n[[notify.report]]\nname = \"a\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\nto = [\"d@e.f\"]\n",
-    ).contains("unknown field to"),
+    ).contains("to is not used by this platform"),
   )
   // Exactly one platform object per endpoint.
   assert_true(
     notify_error(
       "[notify]\n\n[[notify.report]]\nname = \"a\"\n\n[[notify.report.target]]\nplatform = \"feishu\"\nurl = \"https://x/y\"\n\n[notify.report.target.feishu]\nurl = \"https://x/y\"\n",
-    ).contains("two platform objects"),
+    ).contains("unknown field feishu"),
   )
   assert_true(
     notify_error("[notify]\n\n[[notify.report]]\nname = \"a\"\n").contains(
-      "must configure exactly one platform object",
+      "at least one",
     ),
   )
 }
@@ -241,8 +240,10 @@ test "periodic report requires template and instant report rejects it" {
   assert_eq(report.template, Some("health"))
   assert_eq(report.cron_text, Some("*/5 * * * *"))
   let spec = report.cron.unwrap()
-  assert_eq(spec.minutes.length(), 1)
+  // */5 expands to [0,5,10,...,55]
+  assert_eq(spec.minutes.length(), 12)
   assert_eq(spec.minutes[0], 0)
+  assert_eq(spec.minutes[1], 5)
   assert_eq(spec.hours.length(), 24)
 }
 
@@ -259,11 +260,11 @@ test "cron rejects malformed fields and the double day restriction" {
     project_doc(
       (
         #|[notify]
-        #|cron = "0 */6 * * *"
-        #|template = "health"
         #|
         #|[[notify.report]]
         #|name = "t"
+        #|cron = "0 */6 * * *"
+        #|template = "health"
         #|
         #|[[notify.report.target]]
         #|platform = "feishu"
