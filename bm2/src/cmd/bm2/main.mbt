@@ -140,6 +140,23 @@ async fn run() -> Int {
   } noraise {
     loaded => Some(loaded)
   }
+  // start forces a full config verdict before registering: parsing already
+  // ran above, and the filesystem cross-check (script presence) must pass
+  // too, otherwise the project would enter a pointless crash-retry loop
+  // against a script that was never there.
+  if command == "start" {
+    match config {
+      Some(cfg) =>
+        match check_project(cfg, @fs.path_exists) {
+          Some(problem) => {
+            @subproc.eprintln("bm2: " + problem)
+            return 1
+          }
+          None => ()
+        }
+      None => ()
+    }
+  }
   // start targets the project itself (single-app config); kill filters by
   // name; notify takes a notification target name; kill -y has no target.
   let app : String? = if command == "start" {

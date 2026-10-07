@@ -495,6 +495,9 @@ rm "$ACC/ck/slow.ts"
 OUT=$(cd "$ACC/ck" && bm2 check 2>&1)
 check "check rejects a missing script exit" 1 "$?"
 check "check names the missing script" "bm2: script not found: $ACC/ck/slow.ts" "$OUT"
+OUT=$(cd "$ACC/ck" && bm2 start 2>&1)
+check "start refuses a missing script exit" 1 "$?"
+check "start names the missing script" "bm2: script not found: $ACC/ck/slow.ts" "$OUT"
 printf 'name = "ck"
 script = "slow.ts"
 instances = 1

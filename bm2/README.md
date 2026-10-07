@@ -344,6 +344,7 @@ bm2d.events.jsonl                # 守护进程与监督事件
 
 ```bash
 bm2 check            # 校验当前目录 bm2.toml:解析、字段强校验、${VAR} 展开、脚本存在性
+bm2 start            # 启动前同样强制完整配置检测,脚本缺失直接拒绝,不进入崩溃重试
 ```
 
 ```bash
